@@ -1,0 +1,6 @@
+.program squarewave
+    set pindirs, 18           ; set the output pin
+.wrap_target
+    set pins, 1               ; drive pin high
+    set pins, 0               ; drive pins low
+.wrap
