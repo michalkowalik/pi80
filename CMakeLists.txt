@@ -10,10 +10,12 @@ pico_sdk_init()
 
 ## project config
 add_executable(pi80 main.c
-        pio_clock.c
-        pio_clock.h)
+        pio_init.c
+        pio_init.h
+        pins.h)
 
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/squarewave.pio)
+pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/databus.pio)
 target_sources(pi80 PRIVATE main.c)
 
 

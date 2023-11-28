@@ -8,3 +8,4 @@
 #endif //PI80_PIO_CLOCK_H
 
 void start_clock();
+void init_databus();

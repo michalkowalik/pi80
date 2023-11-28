@@ -1,0 +1,10 @@
+.program databus
+.wrap_target
+  nop
+.wrap
+
+% c-sdk {
+    static inline void databus_program_init(PIO pio, uint sm, uint offset) {
+      pio_sm_config c = databus_program_get_default_config(offset);
+    }
+%}
