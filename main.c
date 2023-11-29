@@ -16,18 +16,22 @@ int main() {
     sleep_ms(2000);                // give the board (and Minicom) some time to connect to the serial interface
     printf("Booting Pi80..\r\n");
 
+    // initialize CPU
+    init_pins();
+    gpio_put(RST, 0);      // RESET the CPU
+
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
 #endif
     init_databus();
 
-    // initialize CPU
-    init_pins();
-    gpio_put(RST, 0);      // RESET the CPU
-
 
     // send halt => should turn the LED on
+    send_to_databus(0x76);
+    sleep_ms(10);    // needed?
 
+    // release reset
+    gpio_put(RST, 1);
 
 
 

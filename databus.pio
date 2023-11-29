@@ -1,10 +1,25 @@
 .program databus
-.wrap_target
-  nop
-.wrap
+
+set pindirs, 1           ; set pins as output
+set pins, 0              ; set pins to 0
+
+loop:
+  pull                   ; wait for data
+  out pins, 8            ; shift last 8 bits from OSR to the databus bins
+  jmp loop
 
 % c-sdk {
-    static inline void databus_program_init(PIO pio, uint sm, uint offset) {
+    static inline void databus_program_init(PIO pio, uint sm, uint offset, uint pin, uint pin_count) {
       pio_sm_config c = databus_program_get_default_config(offset);
+
+      sm_config_set_out_pins(&c, pin, pin_count);
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, 1);
+
+      for(uint i = 0; i < pin_count; i++) {
+        pio_gpio_init(pio, pin + i);
+      }
+
+      pio_sm_init(pio, sm, offset, &c);
+      pio_sm_set_enabled(pio, sm, true);
     }
 %}
