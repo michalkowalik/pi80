@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "pio_init.h"
+#include "pio_handlers.h"
 #include "pins.h"
 
 #define PIO_CLOCK_ENABLED true;
@@ -60,6 +60,7 @@ int main() {
     start_clock();
 #endif
     init_databus();
+    init_addressbus();
 
     // send halt => should turn the LED on
     send_to_databus(0x76);
