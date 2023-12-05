@@ -47,6 +47,10 @@ void send_to_databus(uint8_t data) {
     pio_sm_put_blocking(buses_pio, databus_sm, data);
 }
 
+uint32_t get_from_databus() {
+    return pio_sm_get(buses_pio, databus_sm);
+}
+
 void send_to_addressbus(uint8_t address) {
     pio_sm_put_blocking(buses_pio, addressbus_sm, address);
-}
+ }

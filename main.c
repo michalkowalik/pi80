@@ -43,6 +43,28 @@ void init_pins() {
 
 }
 
+void test_memory() {
+    gpio_put(WR, 1);
+    send_to_addressbus(0xaf);
+    send_to_databus(0xaf);
+
+    printf("Attempting to write 0xaf to the memory address 0xaf\r\n");
+
+    gpio_put(WR, 0); // enable write
+    sleep_us(10);
+    gpio_put(WR, 1);
+
+    printf("Attempting to read from the memory address 0xaf\r\n");
+
+
+    gpio_put(RD, 0); // enable read
+    sleep_us(100);           // not sure if needed, but won't hurt
+    uint32_t memory_cell = get_from_databus();
+    gpio_put(RD, 1);
+
+    printf("Read Value: %x \r\n", memory_cell);
+}
+
 int main() {
     stdio_init_all();
     sleep_ms(2000);                // give the board (and Minicom) some time to connect to the serial interface
@@ -56,11 +78,16 @@ int main() {
     gpio_put(BUSREQ, 1);
     gpio_put(WAIT, 1);
 
+
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
 #endif
     init_databus();
     init_addressbus();
+
+    test_memory();
+
+
 
     // send halt => should turn the LED on
     send_to_databus(0x76);
