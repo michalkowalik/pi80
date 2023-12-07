@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PI_BOARD_DEV=/dev/cu.usbmodem1411301
+PI_BOARD_DEV=/dev/cu.usbmodem141101
 
 ## -> not needed if UART is used
 
