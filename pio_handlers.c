@@ -32,24 +32,20 @@ void start_clock() {
     pio_sm_set_enabled(pio, sm, true);
 }
 
+/* just in case..
 void __time_critical_func(bus_read_handler)() {
     uint32_t data = pio_sm_get_blocking(buses_pio, databus_sm);
     value_read = true;
     value = data & 0xff;
     pio_interrupt_clear(buses_pio, PIO0_IRQ_0);
 }
+*/
 
 void init_databus() {
     printf("DEBUG: Starting PIO SM for the databus\r\n");
     uint offset = pio_add_program(buses_pio, &databus_program);
     databus_sm = pio_claim_unused_sm(buses_pio, true);
     databus_program_init(buses_pio, databus_sm, offset, D0, DATA_BUS_WIDTH);
-/*
-    pio_set_irq0_source_enabled(buses_pio, pis_interrupt0, true);
-    irq_set_exclusive_handler(PIO0_IRQ_0, bus_read_handler);
-    irq_set_priority(PIO0_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
-    irq_set_enabled(PIO0_IRQ_0, true);
-*/
     pio_sm_set_enabled(buses_pio, databus_sm, true);
 }
 
@@ -78,14 +74,7 @@ void send_to_databus(uint32_t data) {
  */
 uint32_t get_from_databus() {
     pio_sm_put_blocking(buses_pio, databus_sm, 2); // non-zero, but LSB = 0
-    /*
-    while (!value_read) {
-        sleep_us(1); // needed?
-    }
-    value_read = false;
-    return value;
-     */
-    return pio_sm_get_blocking(buses_pio, databus_sm);
+    return pio_sm_get_blocking(buses_pio, databus_sm) >> 24;
 }
 
 void send_to_addressbus(uint8_t address) {

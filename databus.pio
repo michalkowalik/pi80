@@ -19,11 +19,7 @@ read:
   in pins, 8             ; read 8 pins
   push                   ; push to input register
   set pindirs, 1
-  ;irq 0
-  ;wait 0 irq 0
 reset_bus:
-  ;mov osr, null          ; fill up OSR with zeros
-  ;mov isr, null
   mov x, null            ; fill X scratch register with zeros
 .wrap
 

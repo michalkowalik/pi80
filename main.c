@@ -85,7 +85,7 @@ int main() {
     init_databus();
     init_addressbus();
 
-    // test_memory();
+    test_memory();
 
 
 
