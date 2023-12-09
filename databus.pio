@@ -1,12 +1,8 @@
 .program databus
-
 ; wait for interrupt
 ; read 9 bits
 ; bit 0: 0 is read, 1 is write
 ; bits 1 to 8 -> data to write
-
-set pindirs, 8           ; set pins as output
-set pins, 0              ; set pins to 0
 
 .wrap_target
   pull
@@ -16,9 +12,13 @@ set pins, 0              ; set pins to 0
   out pins, 8            ; shift last 8 bits from OSR to the databus bins
   jmp reset_bus
 read:
+  mov osr, !null         ; fill OSR with ones
+  out pindirs 8          ; change pin direction to input
   in pins, 8             ; read 8 pins
   push                   ; push to input register
-  set pindirs, 1
+
+  mov osr, null
+  out pindirs, 8         ; and back to output
 reset_bus:
   mov x, null            ; fill X scratch register with zeros
 .wrap
@@ -29,11 +29,13 @@ reset_bus:
 
       sm_config_set_out_pins(&c, pin, pin_count);
       sm_config_set_in_pins(&c, pin);
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, 1);
 
       for(uint i = 0; i < pin_count; i++) {
         pio_gpio_init(pio, pin + i);
       }
+
+      // set PINS to output
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
 
       pio_sm_init(pio, sm, offset, &c);
     }

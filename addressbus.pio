@@ -1,6 +1,6 @@
 .program addressbus
 
-set pindirs, 1           ; set pins as output
+set pindirs, 8           ; set pins as output
 set pins, 0              ; set pins to 0
 
 loop:
