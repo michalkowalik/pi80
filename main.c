@@ -88,7 +88,7 @@ int main() {
     while (true) {
         int16_t ch = getchar_timeout_us(100);
         while (ch != PICO_ERROR_TIMEOUT) {
-            printf("got %d\r\n", ch);
+            printf("got 0x%02x\r\n", ch);
             ch = getchar_timeout_us(100);
         }
         //tight_loop_contents();

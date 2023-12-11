@@ -17,7 +17,7 @@
 #define ADDRESS_BUS_WIDTH 8
 
 // control pins
-#define RD 17
-#define WE 16
-#define MREQ 19
+#define RD 22
+#define WE 26
+#define MREQ 27
 
