@@ -13,11 +13,13 @@ loop:
       pio_sm_config c = addressbus_program_get_default_config(offset);
 
       sm_config_set_out_pins(&c, pin, pin_count);
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, 1);
 
       for(uint i = 0; i < pin_count; i++) {
         pio_gpio_init(pio, pin + i);
       }
+
+      // set pins to ouput
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
 
       pio_sm_init(pio, sm, offset, &c);
     }

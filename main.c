@@ -9,6 +9,13 @@ void init_pins() {
     gpio_pull_up(MREQ);
     gpio_set_dir(MREQ, GPIO_OUT);
 
+<<<<<<< Updated upstream
+=======
+    gpio_init(IOREQ);
+    gpio_pull_up(IOREQ);
+    gpio_set_dir(IOREQ, GPIO_IN);
+
+>>>>>>> Stashed changes
     gpio_init(RD);
     gpio_pull_up(RD);
     gpio_set_dir(RD, GPIO_OUT);
@@ -85,6 +92,16 @@ int main() {
     // send halt => should turn the LED on
     send_to_databus(0x76);
 
+<<<<<<< Updated upstream
+=======
+    // set address and databus as input with pull-up
+
+    // release reset
+    gpio_set_dir(BUSREQ, 1);
+    gpio_put(RST, 1);
+
+
+>>>>>>> Stashed changes
     while (true) {
         int16_t ch = getchar_timeout_us(100);
         while (ch != PICO_ERROR_TIMEOUT) {

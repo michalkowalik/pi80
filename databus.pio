@@ -18,7 +18,11 @@ read:
   push                   ; push to input register
 
   mov osr, null
+<<<<<<< Updated upstream
   out pindirs, 8         ; and back to output
+=======
+  out pindirs, 8         ; set pins back to output
+>>>>>>> Stashed changes
 reset_bus:
   mov x, null            ; fill X scratch register with zeros
 .wrap
