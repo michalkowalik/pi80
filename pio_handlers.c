@@ -9,6 +9,7 @@
 
 #include "databus.pio.h"
 #include "addressbus.pio.h"
+#include "clock.pio.h"
 
 #define CLK_FREQ 4000
 
@@ -16,8 +17,20 @@ PIO buses_pio = pio1;
 uint databus_sm;
 uint addressbus_sm;
 
-bool value_read = false;
 uint8_t value;
+
+
+void start_clock() {
+    printf("DEBUG: starting the pio clock\r\n");
+    PIO pio = pio0;
+    uint sm = pio_claim_unused_sm(pio, true);
+    uint offset = pio_add_program(pio, &clock_program);
+
+    float div = (float) clock_get_hz(clk_sys) / CLK_FREQ;
+
+    clock_program_init(pio, sm, offset, div, CLK);
+    pio_sm_set_enabled(pio, sm, true);
+}
 
 /* just in case..
 void __time_critical_func(bus_read_handler)() {

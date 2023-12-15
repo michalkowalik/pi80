@@ -3,19 +3,29 @@
 #include "pio_handlers.h"
 #include "pins.h"
 
+#define PIO_CLOCK_ENABLED true;
 
 void init_pins() {
+    gpio_init(RST);
+    gpio_pull_up(RST);
+    gpio_set_dir(RST, GPIO_OUT);
+
+    gpio_init(WAIT);
+    gpio_pull_up(WAIT);
+    gpio_set_dir(WAIT, GPIO_OUT);
+
     gpio_init(MREQ);
     gpio_pull_up(MREQ);
     gpio_set_dir(MREQ, GPIO_OUT);
 
-<<<<<<< Updated upstream
-=======
+    gpio_init(INT);
+    gpio_pull_up(INT);
+    gpio_set_dir(INT, GPIO_OUT);
+
     gpio_init(IOREQ);
     gpio_pull_up(IOREQ);
     gpio_set_dir(IOREQ, GPIO_IN);
 
->>>>>>> Stashed changes
     gpio_init(RD);
     gpio_pull_up(RD);
     gpio_set_dir(RD, GPIO_OUT);
@@ -89,19 +99,24 @@ int main() {
 
     test_memory();
 
+    gpio_put(INT, 1);  // interrupt not active
+    gpio_put(RST, 0);  // reset active
+    gpio_put(BUSREQ, 1);
+    gpio_put(WAIT, 1);
+
+#ifdef PIO_CLOCK_ENABLED
+    start_clock();
+#endif
+
     // send halt => should turn the LED on
     send_to_databus(0x76);
 
-<<<<<<< Updated upstream
-=======
     // set address and databus as input with pull-up
 
     // release reset
-    gpio_set_dir(BUSREQ, 1);
     gpio_put(RST, 1);
 
 
->>>>>>> Stashed changes
     while (true) {
         int16_t ch = getchar_timeout_us(100);
         while (ch != PICO_ERROR_TIMEOUT) {

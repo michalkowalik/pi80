@@ -17,7 +17,14 @@
 #define ADDRESS_BUS_WIDTH 8
 
 // control pins
+#define BUSREQ 16
+#define BUSACK 17
+#define CLK 18
+#define INT 19
+#define RST 20
+#define WAIT 21
 #define RD 22
 #define WE 26
 #define MREQ 27
+#define IOREQ 28
 
