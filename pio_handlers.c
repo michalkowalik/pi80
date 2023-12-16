@@ -2,7 +2,7 @@
 // Created by Michal Kowalik on 27.11.23.
 //
 #include <stdio.h>
-#include "pico/stdlib.h"
+#include "pio_handlers.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "pins.h"

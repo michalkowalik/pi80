@@ -12,7 +12,9 @@ pico_sdk_init()
 add_executable(pi80 main.c
         pio_handlers.c
         pio_handlers.h
-        pins.h)
+        pins.h
+        memory/memory.h
+        memory/memory.c)
 
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/databus.pio)
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/addressbus.pio)

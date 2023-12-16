@@ -18,8 +18,8 @@ loop:
         pio_gpio_init(pio, pin + i);
       }
 
-      // set pins to ouput
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
+      // set pins to input
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);
 
       pio_sm_init(pio, sm, offset, &c);
     }
