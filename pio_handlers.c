@@ -27,6 +27,8 @@ void start_clock() {
     uint offset = pio_add_program(pio, &clock_program);
 
     float div = (float) clock_get_hz(clk_sys) / CLK_FREQ;
+    printf("clock div: %f\r\n", div);
+
 
     clock_program_init(pio, sm, offset, div, CLK);
     pio_sm_set_enabled(pio, sm, true);

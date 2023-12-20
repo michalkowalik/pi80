@@ -39,14 +39,14 @@ void init_pins() {
 void test_memory() {
     printf("Write to memory addresses 0x00 - 0xff:");
     for(uint addr = 0; addr <= 0xff; addr++) {
-        set_memory_at(addr, addr);
+        set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
             printf("\r\n");
         }
         printf("%02x: %02x, ", addr, addr);
     }
 
-    set_memory_at(0x00, 0x76);
+    set_memory_at(0xff, 0x76);
 
     printf("\r\nConfirm write...\r\n");
     printf("Read from addresses 0x00 - 0xff:\r\n");
@@ -60,7 +60,7 @@ int main() {
     stdio_init_all();
     sleep_ms(1500);                // give the board (and Minicom) some time to connect to the serial interface
     printf("Booting Pi80..\r\n");
-    printf("Press ESC to cycle the clock\r\n");
+    printf("Press CTRL+[ to cycle the clock\r\n");
     printf("Press CTRL+] to dump memory\r\n");
 
     // initialize CPU

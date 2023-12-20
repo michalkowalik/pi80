@@ -7,21 +7,31 @@
 .wrap_target
   pull
   out x, 1               ; shift one bit to the X scratch register
-  jmp !x read            ; if LSB = 0 => read pins
+  jmp x-- write          ; if LSB = 1 => set pins
 
-  out pins, 8            ; shift last 8 bits from OSR to the databus bins
-  jmp reset_bus
 read:
-  mov osr, !null         ; fill OSR with ones
-  out pindirs 8          ; change pin direction to input
   in pins, 8             ; read 8 pins
+  nop [1]                ; wait for the input to settle
   push                   ; push to input register
+  jmp reset_bus          ; reset bus
 
-  mov osr, null
-  out pindirs, 8         ; set pins back to output
+write:
+  mov x, osr             ; fill X scratch register with OSR
+  mov osr, !null         ; fill OSR with ones
+  out pindirs 8          ; set DATABUS as outputs
+  nop [1]                ; wait for the output to settlea
+
+  mov osr, x             ; fill OSR with X scratch register
+  out pins, 8            ; shift last 8 bits from OSR to the databus bins
+                         ; and wait one cycle for the output to settle
+  nop [31]
+
 reset_bus:
   mov x, null            ; fill X scratch register with zeros
+  mov osr, null          ; fill OSR with zeros
+  out pindirs, 8         ; change pin direction to input
 .wrap
+
 
 % c-sdk {
     static inline void databus_program_init(PIO pio, uint sm, uint offset, uint pin, uint pin_count) {
@@ -34,8 +44,11 @@ reset_bus:
         pio_gpio_init(pio, pin + i);
       }
 
-      // set PINS to output
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
+      // debug: slow down the clock
+      sm_config_set_clkdiv(&c, 40000.0f);
+
+      // set PINS to input
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);
 
       pio_sm_init(pio, sm, offset, &c);
     }

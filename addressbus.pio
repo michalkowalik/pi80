@@ -1,25 +1,48 @@
 .program addressbus
 
-set pindirs, 8           ; set pins as output
-set pins, 0              ; set pins to 0
+set pindirs, 8
+set pins, 0
 
 loop:
-  pull                   ; wait for data
-  out pins, 8            ; shift last 8 bits from OSR to the databus bins
-  jmp loop
+    pull
+    out pins, 8
+    jmp loop
+
+;.wrap_target             ; wrap target
+;  pull                   ; wait for data
+;  mov x, osr             ; move data from osr to x
+
+;  mov osr, !null         ; fill OSR wit 1s
+;out pins, 8         ; set databus pins to output
+;  nop [1]
+
+;  mov osr, x             ; move data from x to osr
+;  out pins, 8            ; shift last 8 bits from OSR to the databus bins
+;  nop [31]
+
+;reset_bus:
+;  mov x, null            ; move 0 to x
+;  mov osr, null         ; fill OSR wit 0s
+;  out pindirs, 8         ; set databus pins to input
+;.wrap
+
 
 % c-sdk {
     static inline void addressbus_program_init(PIO pio, uint sm, uint offset, uint pin, uint pin_count) {
       pio_sm_config c = addressbus_program_get_default_config(offset);
 
       sm_config_set_out_pins(&c, pin, pin_count);
+     //sm_config_set_in_pins(&c, pin);
 
       for(uint i = 0; i < pin_count; i++) {
         pio_gpio_init(pio, pin + i);
       }
 
-      // set pins to input
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);
+      // debug: slow down the clock
+      sm_config_set_clkdiv(&c, 40000.0f);
+
+      // set pins to output
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
 
       pio_sm_init(pio, sm, offset, &c);
     }

@@ -12,6 +12,8 @@ void set_memory_at(uint8_t address, uint8_t data) {
     send_to_addressbus(address);
     send_to_databus(data);
 
+    sleep_ms(1);
+
     gpio_put(MREQ, 0); // enable
     gpio_put(WE, 0); // enable write
     sleep_us(10);
