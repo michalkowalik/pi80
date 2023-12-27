@@ -9,6 +9,17 @@
 
 #endif //PI80_PIO_CLOCK_H
 
+#define CLK_FREQ 4000
+
+static const uint DataBusSM = 0;
+static const uint AddressBusSM = 1;
+static const uint ClockSM = 2;
+static const uint WriteIRQ = PIO0_IRQ_0;
+
+extern bool is_written;
+extern PIO ClockPio;
+extern PIO BusPio;
+
 void start_clock();
 void init_databus();
 void init_addressbus();

@@ -34,11 +34,15 @@ void init_pins() {
     gpio_init(WE);
     gpio_pull_up(WE);
     gpio_set_dir(WE, GPIO_OUT);
+
+    gpio_init(LED);
+    gpio_pull_up(LED); // needed?
+    gpio_set_dir(LED, GPIO_OUT);
 }
 
 void test_memory() {
-    printf("Write to memory addresses 0x00 - 0xff:");
-    for(uint addr = 0; addr <= 0xff; addr++) {
+    printf("Write to memory addresses 0x00 - 0xff:\r\n");
+    for(uint addr = 1; addr <= 0xff; addr++) {
         set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
             printf("\r\n");
@@ -46,7 +50,7 @@ void test_memory() {
         printf("%02x: %02x, ", addr, addr);
     }
 
-    set_memory_at(0xff, 0x76);
+    set_memory_at(0x00, 0x76);
 
     printf("\r\nConfirm write...\r\n");
     printf("Read from addresses 0x00 - 0xff:\r\n");

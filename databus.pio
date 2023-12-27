@@ -19,12 +19,13 @@ write:
   mov x, osr             ; fill X scratch register with OSR
   mov osr, !null         ; fill OSR with ones
   out pindirs 8          ; set DATABUS as outputs
-  nop [1]                ; wait for the output to settlea
 
   mov osr, x             ; fill OSR with X scratch register
   out pins, 8            ; shift last 8 bits from OSR to the databus bins
                          ; and wait one cycle for the output to settle
-  nop [31]
+
+  irq 0                  ; raise th interrupt
+  wait 0 irq 0           ; wait for the interrupt to be handled
 
 reset_bus:
   mov x, null            ; fill X scratch register with zeros
@@ -46,6 +47,7 @@ reset_bus:
 
       // debug: slow down the clock
       sm_config_set_clkdiv(&c, 40000.0f);
+
 
       // set PINS to input
       pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);

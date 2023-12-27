@@ -9,16 +9,36 @@
 
 
 void set_memory_at(uint8_t address, uint8_t data) {
+    printf("DEBUG: Writing to memory address 0x%02x, data 0x%02x\r\n", address, data);
     send_to_addressbus(address);
+    printf("DEBUG: Address sent to address bus\r\n");
     send_to_databus(data);
 
-    sleep_ms(1);
+    while ((BusPio->irq & 0x1) != 1) {
+        sleep_us(10);
+    }
+
+    printf("DEBUG: Data sent to data bus\r\n");
 
     gpio_put(MREQ, 0); // enable
     gpio_put(WE, 0); // enable write
     sleep_us(10);
     gpio_put(WE, 1);
     gpio_put(MREQ, 1);
+
+    printf("DEBUG: Memory write finished\r\n");
+    // is_written = true;
+
+    // wait for interrupt to be handled
+    //while (is_written) {
+    //    sleep_ms(1);
+    // }
+
+    printf("[IRQ] %lx - [ints0] %lx \r\n", BusPio->irq, BusPio->ints0);
+    pio_interrupt_clear(BusPio, 0);
+    // BusPio->irq = 0; // clear interrupt
+    printf("[IRQ] %lx - [ints0] %lx \r\n", BusPio->irq, BusPio->ints0);
+    printf("DEBUG: Memory write confirmed\r\n");
 }
 
 void dump_memory_to_stdout() {

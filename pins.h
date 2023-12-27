@@ -24,7 +24,9 @@
 #define RST 20
 #define WAIT 21
 #define RD 22
+#define LED 25
 #define WE 26
 #define MREQ 27
 #define IOREQ 28
+
 
