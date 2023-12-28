@@ -42,7 +42,7 @@ void init_pins() {
 
 void test_memory() {
     printf("Write to memory addresses 0x00 - 0xff:\r\n");
-    for(uint addr = 1; addr <= 0xff; addr++) {
+    for(uint addr = 0; addr <= 0xff; addr++) {
         set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
             printf("\r\n");
@@ -75,16 +75,23 @@ int main() {
 
     test_memory();
 
-    gpio_put(INT, 1);  // interrupt not active
-    gpio_put(RST, 0);  // reset active
-    gpio_put(BUSREQ, 0);
-    gpio_put(WAIT, 1);
+    gpio_put(INT, 1);    // interrupt not active
+    gpio_put(RST, 0);    // reset active
+    gpio_put(BUSREQ, 0); // bus request active
+    gpio_put(WAIT, 1);   // wait inactive
 
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
 #endif
 
     // set address and databus as input with pull-up
+    // (although that pull-up part is not clear to me)
+
+    // set WR, RD and MREQ as inputs with pull-up
+    gpio_set_dir(RD, GPIO_IN);
+    gpio_set_dir(WE, GPIO_IN);
+    gpio_set_dir(MREQ, GPIO_IN);
+
 
     // release reset. Z80 should start executing code from address 0x0000
     gpio_put(BUSREQ, 1);
@@ -101,13 +108,16 @@ int main() {
             }
 
             if (0x1d == ch) {
+                // send wait to cpu
+                // set MEMREQ AND RD to OUTPUT
                 dump_memory_to_stdout();
+                // set MEMREQ AND RD to INPUT
+                // release WAIT
+
                 ch = -1;
             }
-            //printf("got 0x%02x\r\n", ch);
             ch = getchar_timeout_us(100);
 
         }
-        //tight_loop_contents();
     }
 }

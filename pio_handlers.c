@@ -2,7 +2,6 @@
 // Created by Michal Kowalik on 27.11.23.
 //
 #include <stdio.h>
-#include <pico/time.h>
 #include "pio_handlers.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
@@ -15,7 +14,6 @@
 PIO ClockPio = pio1;
 PIO AddressPio = pio1;
 PIO BusPio = pio0;
-// bool is_written = false;
 
 void start_clock() {
     printf("DEBUG: starting the pio clock\r\n");
@@ -29,19 +27,6 @@ void start_clock() {
     pio_sm_set_enabled(pio, ClockSM, true);
 }
 
-void __time_critical_func(databus_write_handler)() {
-    gpio_put(LED, 1);
-    printf("DEBUG: [IRQ] %lx - \r\n", BusPio->irq);
-    //while (!is_written) {
-    //    sleep_ms(1);
-   // }
-    printf("DEBUG: clearing interrupt\r\n");
-    pio_interrupt_clear(BusPio, WriteIRQ);
-    printf("DEBUG: interrupt cleared\r\n");
-    is_written = false;
-    gpio_put(LED, 0);
-    printf("debug: is_written set to false\r\n");
-}
 
 void init_databus() {
     printf("DEBUG: Starting PIO SM for the databus\r\n");
@@ -50,9 +35,7 @@ void init_databus() {
 
     // set IRQ source
     pio_set_irq0_source_enabled(BusPio, pis_interrupt0, true);
-    irq_set_priority(WriteIRQ, PICO_HIGHEST_IRQ_PRIORITY);
-    //irq_set_exclusive_handler(WriteIRQ, databus_write_handler);
-    //irq_set_enabled(WriteIRQ, true);
+    irq_set_priority(DataBusIRQ, PICO_HIGHEST_IRQ_PRIORITY);
 
     pio_sm_set_enabled(BusPio, DataBusSM, true);
 }
@@ -61,11 +44,15 @@ void init_addressbus() {
     printf("DEBUG: Starting PIO SM for the addressbus\r\n");
     uint offset = pio_add_program(AddressPio, &addressbus_program);
     addressbus_program_init(AddressPio, AddressBusSM, offset, A0, ADDRESS_BUS_WIDTH);
+
+    pio_set_irq1_source_enabled(AddressPio, pis_interrupt1, true);
+    irq_set_priority(AddressBusIRQ, PICO_HIGHEST_IRQ_PRIORITY);
+
     pio_sm_set_enabled(AddressPio, AddressBusSM, true);
 }
 
 /*
- * - Send 9 bytes: 8 bytes of data
+ * - Send 9 bytes: 8 bytes o{f} data
  *                 1 byte with value 1 to indicate Write
  * - Trigger Interrupt PIO0
  */

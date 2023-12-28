@@ -1,30 +1,31 @@
 .program addressbus
 
-set pindirs, 8
-set pins, 0
+;set pindirs, 8
+;set pins, 0
 
-loop:
-    pull
-    out pins, 8
-    jmp loop
+;loop:
+;    pull
+;    out pins, 8
+;    jmp loop
 
-;.wrap_target             ; wrap target
-;  pull                   ; wait for data
-;  mov x, osr             ; move data from osr to x
+.wrap_target             ; wrap target
+  pull                   ; wait for data
 
-;  mov osr, !null         ; fill OSR wit 1s
-;out pins, 8         ; set databus pins to output
-;  nop [1]
+  mov x, osr             ; move data from osr to x
+  mov osr, !null         ; fill OSR wit 1s
+  out pindirs, 8         ; set databus pins to output
 
-;  mov osr, x             ; move data from x to osr
-;  out pins, 8            ; shift last 8 bits from OSR to the databus bins
-;  nop [31]
+  mov osr, x             ; move data from x to osr
+  out pins, 8            ; shift last 8 bits from OSR to the databus bins
 
-;reset_bus:
-;  mov x, null            ; move 0 to x
-;  mov osr, null         ; fill OSR wit 0s
-;  out pindirs, 8         ; set databus pins to input
-;.wrap
+  irq 1
+  wait 0 irq 1          ; wait for the interrupt to be handled
+
+reset_bus:
+  mov x, null            ; move 0 to x
+  mov osr, null         ; fill OSR wit 0s
+  out pindirs, 8         ; set databus pins to input
+.wrap
 
 
 % c-sdk {
@@ -39,10 +40,10 @@ loop:
       }
 
       // debug: slow down the clock
-      sm_config_set_clkdiv(&c, 40000.0f);
+      sm_config_set_clkdiv(&c, 400.0f);
 
       // set pins to output
-      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, true);
+      pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);
 
       pio_sm_init(pio, sm, offset, &c);
     }

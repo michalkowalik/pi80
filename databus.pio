@@ -46,7 +46,7 @@ reset_bus:
       }
 
       // debug: slow down the clock
-      sm_config_set_clkdiv(&c, 40000.0f);
+      sm_config_set_clkdiv(&c, 400.0f);
 
 
       // set PINS to input
