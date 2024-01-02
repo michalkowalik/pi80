@@ -51,3 +51,28 @@ void dump_memory_to_stdout() {
     }
     printf("\r\n");
 }
+
+void test_memory() {
+    printf("Write to memory addresses 0x00 - 0xff:\r\n");
+    for(uint addr = 0; addr <= 0xff; addr++) {
+        set_memory_at(addr, addr);   // write NOP to memory
+        if (addr % 16 == 0) {
+            printf("\r\n");
+        }
+        printf("%02x: %02x, ", addr, addr);
+    }
+
+    set_memory_at(0x00, 0x76);
+
+    printf("\r\nConfirm write...\r\n");
+    printf("Read from addresses 0x00 - 0xff:\r\n");
+
+    dump_memory_to_stdout();
+    printf("\r\n");
+}
+
+void zero_memory() {
+    for(uint addr = 0; addr <= 0xff; addr++) {
+        set_memory_at(addr, 0x00);
+    }
+}

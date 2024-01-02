@@ -10,24 +10,14 @@ banksize $8000
 banks 1
 .endro
 
-; Store the string "(ELLO, WORLD!)" in the data section
-string_data:
-.db $28, $45, $4c, $4c, $4f, $00, $37, $4f, $52, $4c, $44, $01
-string_dataEnd:
-
-; Define the source addres
-source_address:
-.dw string_data
-source_addressEnd:
-
 ; Define the destination address
 destination_address:
-.dw 0xf0
+.dw 0x80
 destination_addressEnd:
 
 ; Define the string length
 string_length:
-.dw $0c
+.dw $0f
 string_lengthEnd:
 
 
@@ -42,5 +32,14 @@ copy_loop:
    INC DE                ; Increment the destination address
    DEC BC                ; Decrement the string length counter
    JP NZ, copy_loop       ; Jump to the copy_loop if the counter is not zero
-
 HLT
+
+; Store the string "(HELLO, WORLD!)" in the data section
+string_data:
+.db $28, $48, $45, $4c, $4c, $4f, $2c, $20, $57, $4f, $52, $4c, $44, $21, $29, $00
+string_dataEnd:
+
+; Define the source address
+source_address:
+.dw string_data
+source_addressEnd:

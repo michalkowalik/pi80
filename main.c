@@ -3,6 +3,8 @@
 #include "pio_handlers.h"
 #include "pins.h"
 #include "memory/memory.h"
+#include "hello_world.h"
+#include "slow_clock.h"
 
 #define PIO_CLOCK_ENABLED true;
 
@@ -27,6 +29,10 @@ void init_pins() {
     gpio_pull_up(IOREQ);
     gpio_set_dir(IOREQ, GPIO_IN);
 
+    gpio_init(BUSACK);
+    gpio_pull_up(BUSACK);
+    gpio_set_dir(BUSACK, GPIO_IN);
+
     gpio_init(RD);
     gpio_pull_up(RD);
     gpio_set_dir(RD, GPIO_OUT);
@@ -40,23 +46,13 @@ void init_pins() {
     gpio_set_dir(LED, GPIO_OUT);
 }
 
-void test_memory() {
-    printf("Write to memory addresses 0x00 - 0xff:\r\n");
-    for(uint addr = 0; addr <= 0xff; addr++) {
-        set_memory_at(addr, addr);   // write NOP to memory
-        if (addr % 16 == 0) {
-            printf("\r\n");
-        }
-        printf("%02x: %02x, ", addr, addr);
+
+void load_hello_world() {
+    printf("Loading hello world program..\r\n");
+    for (uint i = 0; i < progmem_length; i++) {
+        set_memory_at(i, progmem[i]);
     }
-
-    set_memory_at(0x00, 0x76);
-
-    printf("\r\nConfirm write...\r\n");
-    printf("Read from addresses 0x00 - 0xff:\r\n");
-
-    dump_memory_to_stdout();
-    printf("\r\n");
+    printf("Done loading hello world program\r\n");
 }
 
 
@@ -73,7 +69,9 @@ int main() {
     init_databus();
     init_addressbus();
 
-    test_memory();
+    // test_memory();
+    zero_memory();
+    load_hello_world();
 
     gpio_put(INT, 1);    // interrupt not active
     gpio_put(RST, 0);    // reset active
@@ -82,6 +80,10 @@ int main() {
 
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
+#else
+    gpio_init(CLK);
+    gpio_set_dir(CLK, GPIO_OUT);
+    slow_clock_init();
 #endif
 
     // set address and databus as input with pull-up
@@ -92,6 +94,7 @@ int main() {
     gpio_set_dir(WE, GPIO_IN);
     gpio_set_dir(MREQ, GPIO_IN);
 
+    sleep_ms(500);
 
     // release reset. Z80 should start executing code from address 0x0000
     gpio_put(BUSREQ, 1);
@@ -109,10 +112,25 @@ int main() {
 
             if (0x1d == ch) {
                 // send wait to cpu
+                gpio_put(WAIT, 0);
+
                 // set MEMREQ AND RD to OUTPUT
+                gpio_set_dir(MREQ, GPIO_OUT);
+                gpio_set_dir(RD, GPIO_OUT);
+                gpio_put(MREQ, 0);
+                gpio_put(RD, 0);
+
                 dump_memory_to_stdout();
+
+                gpio_put(RD, 1);
+                gpio_put(MREQ, 1);
+
                 // set MEMREQ AND RD to INPUT
+                gpio_set_dir(MREQ, GPIO_IN);
+                gpio_set_dir(RD, GPIO_IN);
+
                 // release WAIT
+                gpio_put(WAIT, 1);
 
                 ch = -1;
             }

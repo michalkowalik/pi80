@@ -1,13 +1,5 @@
 .program addressbus
 
-;set pindirs, 8
-;set pins, 0
-
-;loop:
-;    pull
-;    out pins, 8
-;    jmp loop
-
 .wrap_target             ; wrap target
   pull                   ; wait for data
 
