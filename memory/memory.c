@@ -9,6 +9,9 @@
 
 
 void set_memory_at(uint8_t address, uint8_t data) {
+    gpio_set_dir(MREQ, GPIO_OUT);
+    gpio_set_dir(WE, GPIO_OUT);
+
     send_to_addressbus(address);
     while ((AddressPio->irq & 0x2) != 2) {
         sleep_us(10);
@@ -27,10 +30,17 @@ void set_memory_at(uint8_t address, uint8_t data) {
 
     pio_interrupt_clear(BusPio, DataBusIRQ);
     pio_interrupt_clear(AddressPio, AddressBusIRQ);
+
+    gpio_set_dir(MREQ, GPIO_IN);
+    gpio_set_dir(WE, GPIO_IN);
 }
 
 void dump_memory_to_stdout() {
     printf("DEBUG: Dumping memory to stdout");
+
+    gpio_set_dir(MREQ, GPIO_OUT);
+    gpio_set_dir(RD, GPIO_OUT);
+
     for (uint addr = 0; addr <= 0xff; addr++) {
         send_to_addressbus(addr);
         while ((AddressPio->irq & 0x2) != 2) {
@@ -50,6 +60,9 @@ void dump_memory_to_stdout() {
         printf("%02x: %02lx, ", addr, memory_cell);
     }
     printf("\r\n");
+
+    gpio_set_dir(MREQ, GPIO_IN);
+    gpio_set_dir(RD, GPIO_IN);
 }
 
 void test_memory() {

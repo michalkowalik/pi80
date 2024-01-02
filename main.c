@@ -9,6 +9,8 @@
 #define PIO_CLOCK_ENABLED true;
 
 void init_pins() {
+
+    // RST, WAIT, BUSREQ and INT are output-only, active low
     gpio_init(RST);
     gpio_pull_up(RST);
     gpio_set_dir(RST, GPIO_OUT);
@@ -17,40 +19,49 @@ void init_pins() {
     gpio_pull_up(WAIT);
     gpio_set_dir(WAIT, GPIO_OUT);
 
-    gpio_init(MREQ);
-    gpio_pull_up(MREQ);
-    gpio_set_dir(MREQ, GPIO_OUT);
+    gpio_init(BUSREQ);
+    gpio_pull_up(BUSREQ);
+    gpio_set_dir(BUSREQ, GPIO_OUT);
 
     gpio_init(INT);
     gpio_pull_up(INT);
     gpio_set_dir(INT, GPIO_OUT);
 
+    // MREQ is output-only on the Z80. Should be default input with pull-up on pico
+    gpio_init(MREQ);
+    gpio_pull_up(MREQ);
+    gpio_set_dir(MREQ, GPIO_IN);
+
+    // IOREQ is output-only on the Z80. Should be default input with pull-up on pico
     gpio_init(IOREQ);
     gpio_pull_up(IOREQ);
     gpio_set_dir(IOREQ, GPIO_IN);
 
+    // BUSACK is input-only. Indicates, that Z80 has let another device control the bus
     gpio_init(BUSACK);
     gpio_pull_up(BUSACK);
     gpio_set_dir(BUSACK, GPIO_IN);
 
+    // RD and WE are output-only on the Z80. Should be default input with pull-up on pico
     gpio_init(RD);
     gpio_pull_up(RD);
-    gpio_set_dir(RD, GPIO_OUT);
+    gpio_set_dir(RD, GPIO_IN);
 
     gpio_init(WE);
     gpio_pull_up(WE);
-    gpio_set_dir(WE, GPIO_OUT);
+    gpio_set_dir(WE, GPIO_IN);
 
+    // User LED. no direct mapping to Z80
     gpio_init(LED);
-    gpio_pull_up(LED); // needed?
+    gpio_pull_up(LED);
     gpio_set_dir(LED, GPIO_OUT);
 }
 
 
 void load_hello_world() {
     printf("Loading hello world program..\r\n");
-    for (uint i = 0; i < progmem_length; i++) {
-        set_memory_at(i, progmem[i]);
+    for (uint i = 0; i < hello_world_length; i++) {
+        set_memory_at(i, hello_worldSM[i]);
     }
     printf("Done loading hello world program\r\n");
 }
