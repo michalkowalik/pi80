@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "pio_handlers.h"
+#include "pio/pio_handlers.h"
 #include "pins.h"
 #include "memory/memory.h"
 #include "hello_world.h"
