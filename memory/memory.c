@@ -5,7 +5,7 @@
 #include "pico/stdlib.h"
 #include "memory.h"
 #include "../pins.h"
-#include "../pio_handlers.h"
+#include "../pio/pio_handlers.h"
 
 
 void set_memory_at(uint8_t address, uint8_t data) {

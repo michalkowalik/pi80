@@ -10,8 +10,8 @@ pico_sdk_init()
 
 ## project config
 add_executable(pi80 main.c
-        pio_handlers.c
-        pio_handlers.h
+        pio/pio_handlers.c
+        pio/pio_handlers.h
         pins.h
         memory/memory.h
         memory/memory.c
@@ -19,9 +19,9 @@ add_executable(pi80 main.c
         slow_clock.c
         slow_clock.h)
 
-pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/databus.pio)
-pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/addressbus.pio)
-pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/clock.pio)
+pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/databus.pio)
+pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/addressbus.pio)
+pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/clock.pio)
 target_sources(pi80 PRIVATE main.c)
 
 

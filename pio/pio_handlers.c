@@ -5,7 +5,7 @@
 #include "pio_handlers.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
-#include "pins.h"
+#include "../pins.h"
 
 #include "databus.pio.h"
 #include "addressbus.pio.h"
