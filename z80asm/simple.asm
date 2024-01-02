@@ -1,0 +1,4 @@
+ld de, 0x80
+ld a, 0xff
+ld (de), a
+halt
