@@ -3,7 +3,7 @@
 #include "pio/pio_handlers.h"
 #include "pins.h"
 #include "memory/memory.h"
-#include "hello_world.h"
+#include "boot_loader.h"
 #include "slow_clock.h"
 
 #define PIO_CLOCK_ENABLED true;
@@ -58,12 +58,12 @@ void init_pins() {
 }
 
 
-void load_hello_world() {
-    printf("Loading hello world program..\r\n");
-    for (uint i = 0; i < hello_world_length; i++) {
-        set_memory_at(i, hello_worldSM[i]);
+void load_stage1_bootloader() {
+    printf("Loading Stage 1 bootloader.\r\n");
+    uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
+    for (uint i = 0; i < stage1_bootloader_length; i++) {
+        set_memory_at(i, boot_stage1[i]);
     }
-    printf("Done loading hello world program\r\n");
 }
 
 
@@ -82,7 +82,7 @@ int main() {
 
     // test_memory();
     zero_memory();
-    load_hello_world();
+    load_stage1_bootloader();
 
     gpio_put(INT, 1);    // interrupt not active
     gpio_put(RST, 0);    // reset active
@@ -105,9 +105,10 @@ int main() {
     gpio_set_dir(WE, GPIO_IN);
     gpio_set_dir(MREQ, GPIO_IN);
 
-    sleep_ms(500);
+    sleep_ms(100);
 
     // release reset. Z80 should start executing code from address 0x0000
+    printf("Stage 1 bootloader loaded. Releasing reset.\r\n");
     gpio_put(BUSREQ, 1);
     gpio_put(RST, 1);
 
