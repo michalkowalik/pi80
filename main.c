@@ -60,9 +60,10 @@ void init_pins() {
 
 void load_stage1_bootloader() {
     printf("Loading Stage 1 bootloader.\r\n");
-    uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
+    uint16_t stage1_bootloader_length = sizeof(hello_worldSM) / sizeof(hello_worldSM[0]);
+    printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
-        set_memory_at(i, boot_stage1[i]);
+        set_memory_at(i, hello_worldSM[i]);
     }
 }
 
@@ -80,7 +81,7 @@ int main() {
     init_databus();
     init_addressbus();
 
-    // test_memory();
+    test_memory();
     zero_memory();
     load_stage1_bootloader();
 
