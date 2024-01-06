@@ -10,14 +10,10 @@
 
 void init_pins() {
 
-    // RST, WAIT, BUSREQ and INT are output-only, active low
+    // RST, BUSREQ and INT are output-only, active low
     gpio_init(RST);
     gpio_pull_up(RST);
     gpio_set_dir(RST, GPIO_OUT);
-
-    gpio_init(WAIT);
-    gpio_pull_up(WAIT);
-    gpio_set_dir(WAIT, GPIO_OUT);
 
     gpio_init(BUSREQ);
     gpio_pull_up(BUSREQ);
@@ -27,15 +23,21 @@ void init_pins() {
     gpio_pull_up(INT);
     gpio_set_dir(INT, GPIO_OUT);
 
+    // WAIT is triggered by the flip-flop. Should be default input with pull-up on pico
+    gpio_init(WAIT);
+    gpio_pull_up(WAIT);
+    gpio_set_dir(WAIT, GPIO_IN);
+
+
     // MREQ is output-only on the Z80. Should be default input with pull-up on pico
     gpio_init(MREQ);
     gpio_pull_up(MREQ);
     gpio_set_dir(MREQ, GPIO_IN);
 
-    // IOREQ is output-only on the Z80. Should be default input with pull-up on pico
-    gpio_init(IOREQ);
-    gpio_pull_up(IOREQ);
-    gpio_set_dir(IOREQ, GPIO_IN);
+    // WAIT_RES flips the flip-flop and releases the WAIT state.
+    gpio_init(WAIT_RES);
+    gpio_pull_up(WAIT_RES);
+    gpio_set_dir(WAIT_RES, GPIO_OUT);
 
     // BUSACK is input-only. Indicates, that Z80 has let another device control the bus
     gpio_init(BUSACK);
@@ -126,35 +128,39 @@ int main() {
     printf("Stage 1 bootloader loaded. Releasing reset.\r\n");
     gpio_put(BUSREQ, 1);
     gpio_put(RST, 1);
-    
+
     while (true) {
+        // this whole uart_chart fetching can happen in a function I guess?
         if (uart_char != 0) {
-            char ch = getchar_timeout_us(0);
-            printf("UART: %02x\r\n", ch);
-            uart_char = 0;
+            int ch;
+            while (ch = getchar_timeout_us(10), ch != -1) {
+                printf("UART: %02x\r\n", ch);
+                uart_char = 0;
 
-            if (0x1d == ch) {
-                // send wait to cpu
-                gpio_put(WAIT, 0);
+                if (0x1d == ch) {
+                    // send wait to cpu
+                    gpio_put(WAIT, 0);
 
-                // set MEMREQ AND RD to OUTPUT
-                gpio_set_dir(MREQ, GPIO_OUT);
-                gpio_set_dir(RD, GPIO_OUT);
-                gpio_put(MREQ, 0);
-                gpio_put(RD, 0);
+                    // set MEMREQ AND RD to OUTPUT
+                    gpio_set_dir(MREQ, GPIO_OUT);
+                    gpio_set_dir(RD, GPIO_OUT);
+                    gpio_put(MREQ, 0);
+                    gpio_put(RD, 0);
 
-                dump_memory_to_stdout();
+                    dump_memory_to_stdout();
 
-                gpio_put(RD, 1);
-                gpio_put(MREQ, 1);
+                    gpio_put(RD, 1);
+                    gpio_put(MREQ, 1);
 
-                // set MEMREQ AND RD to INPUT
-                gpio_set_dir(MREQ, GPIO_IN);
-                gpio_set_dir(RD, GPIO_IN);
+                    // set MEMREQ AND RD to INPUT
+                    gpio_set_dir(MREQ, GPIO_IN);
+                    gpio_set_dir(RD, GPIO_IN);
 
-                // release WAIT
-                gpio_put(WAIT, 1);
+                    // release WAIT
+                    gpio_put(WAIT, 1);
+                }
             }
+
         }
     }
 }
