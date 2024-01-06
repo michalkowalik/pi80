@@ -5,6 +5,8 @@ project(pi80 C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+SET(PICO_STDIO_USB_SUPPORT_CHARS_AVAILABLE_CALLBACK 1)
+
 pico_sdk_init()
 
 
@@ -33,4 +35,3 @@ pico_add_extra_outputs(pi80)
 # enable usb output, disable uart output
 pico_enable_stdio_usb(pi80 1)
 pico_enable_stdio_uart(pi80 0)
-

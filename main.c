@@ -67,10 +67,23 @@ void load_stage1_bootloader() {
     }
 }
 
+void uart_callback(void *context) {
+    assert(context != NULL);
+    int *i = (int *) context;
+    *i = 1;
+}
 
 int main() {
+
+    int uart_char = 0;
     stdio_init_all();
-    sleep_ms(1500);                // give the board (and Minicom) some time to connect to the serial interface
+
+    // give the board (and Minicom) some time to connect to the serial interface
+    sleep_ms(1500);
+
+    // set callback for serial input
+    stdio_set_chars_available_callback(uart_callback, &uart_char);
+
     printf("Booting Pi80..\r\n");
     printf("Press CTRL+[ to cycle the clock\r\n");
     printf("Press CTRL+] to dump memory\r\n");
@@ -84,6 +97,7 @@ int main() {
     test_memory();
     zero_memory();
     load_stage1_bootloader();
+    dump_memory_to_stdout();
 
     gpio_put(INT, 1);    // interrupt not active
     gpio_put(RST, 0);    // reset active
@@ -112,16 +126,12 @@ int main() {
     printf("Stage 1 bootloader loaded. Releasing reset.\r\n");
     gpio_put(BUSREQ, 1);
     gpio_put(RST, 1);
-
-
+    
     while (true) {
-        int16_t ch = getchar_timeout_us(100);
-        while (ch != PICO_ERROR_TIMEOUT) {
-            if (0x1b == ch) {
-                printf("cycling clock\r\n");
-                // trigger interrupt ?
-                ch = -1;
-            }
+        if (uart_char != 0) {
+            char ch = getchar_timeout_us(0);
+            printf("UART: %02x\r\n", ch);
+            uart_char = 0;
 
             if (0x1d == ch) {
                 // send wait to cpu
@@ -144,11 +154,7 @@ int main() {
 
                 // release WAIT
                 gpio_put(WAIT, 1);
-
-                ch = -1;
             }
-            ch = getchar_timeout_us(100);
-
         }
     }
 }

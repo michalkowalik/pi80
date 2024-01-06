@@ -55,9 +55,9 @@ void dump_memory_to_stdout() {
         gpio_put(MREQ, 1);
         pio_interrupt_clear(AddressPio, 1); // clear interrupt
         if (addr % 16 == 0) {
-            printf("\r\n");
+            printf("\r\n%04x:  ", addr);
         }
-        printf("%02x: %02lx, ", addr, memory_cell);
+        printf("%02lx  ", memory_cell);
     }
     printf("\r\n");
 
@@ -70,9 +70,9 @@ void test_memory() {
     for(uint addr = 0; addr <= 0xff; addr++) {
         set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
-            printf("\r\n");
+            printf("\r\n%04x:  ", addr);
         }
-        printf("%02x: %02x, ", addr, addr);
+        printf("%02x,  ", addr);
     }
 
     set_memory_at(0x00, 0x76);

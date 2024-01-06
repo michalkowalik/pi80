@@ -9,7 +9,7 @@
 
 #endif //PI80_PIO_CLOCK_H
 
-#define CLK_FREQ 1000
+#define CLK_FREQ 1000000
 
 static const uint DataBusSM = 0;
 static const uint AddressBusSM = 1;
