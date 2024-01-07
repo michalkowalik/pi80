@@ -84,6 +84,7 @@ void read_from_uart(uint8_t  *ch) {
         while (c = getchar_timeout_us(0), c != -1) {
             *ch = c;
         }
+        uart_char = 0;
     }
 }
 
