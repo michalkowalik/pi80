@@ -8,6 +8,9 @@
 
 #define PIO_CLOCK_ENABLED true;
 
+bool debug = false;
+int uart_char = 0;
+
 void init_pins() {
 
     // RST, BUSREQ and INT are output-only, active low
@@ -62,10 +65,10 @@ void init_pins() {
 
 void load_stage1_bootloader() {
     printf("Loading Stage 1 bootloader.\r\n");
-    uint16_t stage1_bootloader_length = sizeof(hello_worldSM) / sizeof(hello_worldSM[0]);
+    uint16_t stage1_bootloader_length = sizeof(hello_world_screen) / sizeof(hello_world_screen[0]);
     printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
-        set_memory_at(i, hello_worldSM[i]);
+        set_memory_at(i, hello_world_screen[i]);
     }
 }
 
@@ -75,9 +78,17 @@ void uart_callback(void *context) {
     *i = 1;
 }
 
+void read_from_uart(uint8_t  *ch) {
+    if (uart_char != 0) {
+        int c;
+        while (c = getchar_timeout_us(0), c != -1) {
+            *ch = c;
+        }
+    }
+}
+
 int main() {
 
-    int uart_char = 0;
     stdio_init_all();
 
     // give the board (and Minicom) some time to connect to the serial interface
@@ -96,7 +107,7 @@ int main() {
     init_databus();
     init_addressbus();
 
-    test_memory();
+    // test_memory();
     zero_memory();
     load_stage1_bootloader();
     dump_memory_to_stdout();
@@ -105,6 +116,7 @@ int main() {
     gpio_put(RST, 0);    // reset active
     gpio_put(BUSREQ, 0); // bus request active
     gpio_put(WAIT, 1);   // wait inactive
+    gpio_put(WAIT_RES, 0); // wait_res low to reset the flip-flop
 
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
@@ -122,14 +134,83 @@ int main() {
     gpio_set_dir(WE, GPIO_IN);
     gpio_set_dir(MREQ, GPIO_IN);
 
-    sleep_ms(100);
 
     // release reset. Z80 should start executing code from address 0x0000
-    printf("Stage 1 bootloader loaded. Releasing reset.\r\n");
+    printf("Stage 1 bootloader loaded. Releasing reset.\r\n\r\n");
+    sleep_ms(1000);
+    gpio_put(WAIT_RES, 1);
     gpio_put(BUSREQ, 1);
     gpio_put(RST, 1);
 
     while (true) {
+        // IO operation requested
+        if (gpio_get(WAIT) == 0) {
+            // Write operation requested
+            if (gpio_get(WE) == 0) {
+                if (debug) printf("DEBUG: Write operation requested\r\n");
+
+                // read Z80's address bus
+                uint32_t io_address = read_from_addressbus();
+                uint8_t io_data = read_from_databus() & 0xff;
+                if (debug) printf("DEBUG: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
+
+                switch (io_address) {
+                    case 0x00:
+                        printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+                        break;
+                    case 0x01:
+                        if (debug) printf("Serial TX requested\r\n");
+                        printf("%c", io_data);
+                        break;
+                    default:
+                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                }
+            // Read operation requested
+            } else if (gpio_get(RD) == 0) {
+                if (debug) printf("DEBUG: Read operation requested\r\n");
+
+                uint32_t io_address = read_from_addressbus();
+                uint8_t  io_data = 0x00;
+
+                switch (io_address) {
+                    case 0x00:
+                        printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+                        break;
+                    case 0x01:
+                        // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
+                        // NOTE 2: the INT_ signal is always reset (set to HIGH) after this I/O operation.
+
+                        if (debug) printf("Serial RX requested\r\n");
+
+                        io_data = 0xff;
+                        read_from_uart(&io_data);
+                        gpio_put(INT, 1);
+                        break;
+                    case 0x02:
+                        // read boot phase 2 payload
+
+                        break;
+                    default:
+                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                }
+
+                // send io_data to the databus
+                // wait some microseconds to make sure Z80 fetched the data
+                // some rework on how to clear the interrupt is needed
+
+            } else {
+                if (debug) printf("DEBUG: Interrupt requested?\r\n");
+            }
+            // control bus sequence to exit from a wait state
+            gpio_put(BUSREQ, 0);         // Request for a DMA
+            gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
+            sleep_us(100);
+            gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
+            gpio_put(BUSREQ, 1);         // resume normal operation
+
+        }
+
+        /*
         // this whole uart_chart fetching can happen in a function I guess?
         if (uart_char != 0) {
             int ch;
@@ -138,29 +219,11 @@ int main() {
                 uart_char = 0;
 
                 if (0x1d == ch) {
-                    // send wait to cpu
-                    gpio_put(WAIT, 0);
-
-                    // set MEMREQ AND RD to OUTPUT
-                    gpio_set_dir(MREQ, GPIO_OUT);
-                    gpio_set_dir(RD, GPIO_OUT);
-                    gpio_put(MREQ, 0);
-                    gpio_put(RD, 0);
-
                     dump_memory_to_stdout();
-
-                    gpio_put(RD, 1);
-                    gpio_put(MREQ, 1);
-
-                    // set MEMREQ AND RD to INPUT
-                    gpio_set_dir(MREQ, GPIO_IN);
-                    gpio_set_dir(RD, GPIO_IN);
-
-                    // release WAIT
-                    gpio_put(WAIT, 1);
                 }
             }
 
         }
+         */
     }
 }

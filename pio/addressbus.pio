@@ -2,7 +2,16 @@
 
 .wrap_target             ; wrap target
   pull                   ; wait for data
+  out x, 1               ; if LSB = 1 => set pins
+  jmp x-- write          ; if LSB = 0 => reset pins
 
+read:
+  in pins, 8              ; read addressbus pins
+  nop [1]
+  push
+  jmp reset_bus
+
+write:
   mov x, osr             ; move data from osr to x
   mov osr, !null         ; fill OSR wit 1s
   out pindirs, 8         ; set databus pins to output
@@ -25,16 +34,16 @@ reset_bus:
       pio_sm_config c = addressbus_program_get_default_config(offset);
 
       sm_config_set_out_pins(&c, pin, pin_count);
-     //sm_config_set_in_pins(&c, pin);
+      sm_config_set_in_pins(&c, pin);
 
       for(uint i = 0; i < pin_count; i++) {
         pio_gpio_init(pio, pin + i);
       }
 
       // debug: slow down the clock
-      sm_config_set_clkdiv(&c, 400.0f);
+      //sm_config_set_clkdiv(&c, 4.0f);
 
-      // set pins to output
+      // set pins to input
       pio_sm_set_consecutive_pindirs(pio, sm, pin, pin_count, false);
 
       pio_sm_init(pio, sm, offset, &c);

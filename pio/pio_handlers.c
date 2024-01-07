@@ -66,11 +66,17 @@ void send_to_databus(uint32_t data) {
  * - trigger interrupt
  * - read from PIO's ISR
  */
-uint32_t get_from_databus() {
+uint32_t read_from_databus() {
     pio_sm_put_blocking(BusPio, DataBusSM, 2); // non-zero, but LSB = 0
     return pio_sm_get_blocking(BusPio, DataBusSM) >> 24;
 }
 
 void send_to_addressbus(uint8_t address) {
-    pio_sm_put_blocking(AddressPio, AddressBusSM, address);
+    uint32_t address_to_send = (address << 1) | 1;
+    pio_sm_put_blocking(AddressPio, AddressBusSM, address_to_send);
  }
+
+uint32_t read_from_addressbus() {
+    pio_sm_put_blocking(AddressPio, AddressBusSM, 2); // non-zero, but LSB = 0
+    return pio_sm_get_blocking(AddressPio, AddressBusSM) >> 24;
+}

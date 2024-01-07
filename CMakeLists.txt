@@ -20,7 +20,8 @@ add_executable(pi80 main.c
         boot_loader.h
         slow_clock.c
         slow_clock.h
-        rom_data/basic.h)
+        rom_data/basic.h
+        io_operations.c)
 
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/databus.pio)
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/addressbus.pio)

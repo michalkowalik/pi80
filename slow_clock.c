@@ -22,5 +22,5 @@ bool clock_timer(struct repeating_timer *t) {
 }
 
 void slow_clock_init() {
-    add_repeating_timer_ms(5, clock_timer, NULL, &clock_timer_id);
+    add_repeating_timer_ms(10, clock_timer, NULL, &clock_timer_id);
 }

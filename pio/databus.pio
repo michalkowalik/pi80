@@ -18,7 +18,7 @@ read:
 write:
   mov x, osr             ; fill X scratch register with OSR
   mov osr, !null         ; fill OSR with ones
-  out pindirs 8          ; set DATABUS as outputs
+  out pindirs, 8         ; set DATABUS as outputs
 
   mov osr, x             ; fill OSR with X scratch register
   out pins, 8            ; shift last 8 bits from OSR to the databus bins
@@ -46,7 +46,7 @@ reset_bus:
       }
 
       // debug: slow down the clock
-      sm_config_set_clkdiv(&c, 400.0f);
+      //sm_config_set_clkdiv(&c, 4.0f);
 
 
       // set PINS to input
