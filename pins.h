@@ -27,6 +27,6 @@
 #define LED 25
 #define WE 26
 #define MREQ 27
-#define IOREQ 28
+#define WAIT_RES 28
 
 

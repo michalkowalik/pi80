@@ -38,6 +38,16 @@ void set_memory_at(uint8_t address, uint8_t data) {
 void dump_memory_to_stdout() {
     printf("DEBUG: Dumping memory to stdout");
 
+    // send wait to cpu
+    gpio_put(WAIT, 0);
+
+    // set MEMREQ AND RD to OUTPUT
+    gpio_set_dir(MREQ, GPIO_OUT);
+    gpio_set_dir(RD, GPIO_OUT);
+    gpio_put(MREQ, 0);
+    gpio_put(RD, 0);
+
+
     gpio_set_dir(MREQ, GPIO_OUT);
     gpio_set_dir(RD, GPIO_OUT);
 
@@ -50,19 +60,30 @@ void dump_memory_to_stdout() {
         gpio_put(MREQ, 0);
         gpio_put(RD, 0); // enable read
         sleep_us(10);           // not sure if needed, but won't hurt
-        uint32_t memory_cell = get_from_databus();
+        uint32_t memory_cell = read_from_databus();
         gpio_put(RD, 1);
         gpio_put(MREQ, 1);
         pio_interrupt_clear(AddressPio, 1); // clear interrupt
         if (addr % 16 == 0) {
-            printf("\r\n");
+            printf("\r\n%04x:  ", addr);
         }
-        printf("%02x: %02lx, ", addr, memory_cell);
+        printf("%02lx  ", memory_cell);
     }
     printf("\r\n");
 
     gpio_set_dir(MREQ, GPIO_IN);
     gpio_set_dir(RD, GPIO_IN);
+
+    gpio_put(RD, 1);
+    gpio_put(MREQ, 1);
+
+    // set MEMREQ AND RD to INPUT
+    gpio_set_dir(MREQ, GPIO_IN);
+    gpio_set_dir(RD, GPIO_IN);
+
+    // release WAIT
+    gpio_put(WAIT, 1);
+
 }
 
 void test_memory() {
@@ -70,9 +91,9 @@ void test_memory() {
     for(uint addr = 0; addr <= 0xff; addr++) {
         set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
-            printf("\r\n");
+            printf("\r\n%04x:  ", addr);
         }
-        printf("%02x: %02x, ", addr, addr);
+        printf("%02x,  ", addr);
     }
 
     set_memory_at(0x00, 0x76);
