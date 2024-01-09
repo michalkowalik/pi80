@@ -4,12 +4,13 @@
 #include "pins.h"
 #include "memory/memory.h"
 #include "boot_loader.h"
+#include "rom_data/basic.h"
 #include "slow_clock.h"
 
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = false;
-bool debug2 = false;
+bool debug2 = true;
 int uart_char = 0;
 
 void init_pins() {
@@ -66,10 +67,10 @@ void init_pins() {
 
 void load_stage1_bootloader() {
     printf("Loading Stage 1 bootloader.\r\n");
-    uint16_t stage1_bootloader_length = sizeof(hello_world_interactive) / sizeof(hello_world_interactive[0]);
+    uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
     printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
-        set_memory_at(i, hello_world_interactive[i]);
+        set_memory_at(i, boot_stage1[i]);
     }
 }
 
@@ -77,6 +78,7 @@ void uart_callback(void *context) {
     assert(context != NULL);
     int *i = (int *) context;
     *i = 1;
+    gpio_put(INT, 0);        // send request for interrupt
 }
 
 void read_from_uart(uint8_t  *ch) {
@@ -90,6 +92,7 @@ void read_from_uart(uint8_t  *ch) {
 }
 
 int main() {
+    uint index_stage2 = 0;      // index for stage 2 bootloader
 
     stdio_init_all();
 
@@ -105,6 +108,7 @@ int main() {
 
     // initialize CPU
     init_pins();
+    sleep_ms(100);
 
     init_databus();
     init_addressbus();
@@ -176,12 +180,12 @@ int main() {
                 gpio_put(BUSREQ, 1);         // resume normal operation
 
 
-                // Read operation requested
-            } else if (gpio_get(RD) == 0) {
-                if (debug2) printf("DEBUG: Read operation requested\r\n");
-
+            }
+            else if (gpio_get(RD) == 0) {
                 uint32_t io_address = read_from_addressbus();
                 uint8_t  io_data = 0x00;
+
+                //if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
 
                 switch (io_address) {
                     case 0x00:
@@ -199,6 +203,10 @@ int main() {
                         break;
                     case 0x02:
                         // read boot phase 2 payload
+                        if (index_stage2 < stage2_basic_size) {
+                            io_data = stage2_basic[index_stage2];
+                            index_stage2++;
+                        }
 
                         break;
                     default:
