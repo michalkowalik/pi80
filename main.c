@@ -9,6 +9,7 @@
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = false;
+bool debug2 = false;
 int uart_char = 0;
 
 void init_pins() {
@@ -65,10 +66,10 @@ void init_pins() {
 
 void load_stage1_bootloader() {
     printf("Loading Stage 1 bootloader.\r\n");
-    uint16_t stage1_bootloader_length = sizeof(hello_world_screen) / sizeof(hello_world_screen[0]);
+    uint16_t stage1_bootloader_length = sizeof(hello_world_interactive) / sizeof(hello_world_interactive[0]);
     printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
-        set_memory_at(i, hello_world_screen[i]);
+        set_memory_at(i, hello_world_interactive[i]);
     }
 }
 
@@ -166,9 +167,18 @@ int main() {
                     default:
                         printf("DEBUG: Unknown or not implemented IO address\r\n");
                 }
-            // Read operation requested
+
+                // control bus sequence to exit from a wait state
+                gpio_put(BUSREQ, 0);         // Request for a DMA
+                gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);                // TODO: 10us might be too much. Keep an eye on this
+                gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);         // resume normal operation
+
+
+                // Read operation requested
             } else if (gpio_get(RD) == 0) {
-                if (debug) printf("DEBUG: Read operation requested\r\n");
+                if (debug2) printf("DEBUG: Read operation requested\r\n");
 
                 uint32_t io_address = read_from_addressbus();
                 uint8_t  io_data = 0x00;
@@ -181,7 +191,7 @@ int main() {
                         // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
                         // NOTE 2: the INT_ signal is always reset (set to HIGH) after this I/O operation.
 
-                        if (debug) printf("Serial RX requested\r\n");
+                        if (debug2) printf("Serial RX requested\r\n");
 
                         io_data = 0xff;
                         read_from_uart(&io_data);
@@ -196,35 +206,21 @@ int main() {
                 }
 
                 // send io_data to the databus
-                // wait some microseconds to make sure Z80 fetched the data
-                // some rework on how to clear the interrupt is needed
+                send_to_databus(io_data);
+                while ((BusPio->irq & 0x1) != 1) {
+                    sleep_us(1);
+                }
+                gpio_put(BUSREQ, 0);                       // Request for a DMA
+                gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);                              // TODO: 10us might be too much. Keep an eye on this
+                pio_interrupt_clear(BusPio, DataBusIRQ);
+                gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);                       // resume normal operation
+
 
             } else {
                 if (debug) printf("DEBUG: Interrupt requested?\r\n");
             }
-            // control bus sequence to exit from a wait state
-            gpio_put(BUSREQ, 0);         // Request for a DMA
-            gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
-            sleep_us(100);
-            gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
-            gpio_put(BUSREQ, 1);         // resume normal operation
-
         }
-
-        /*
-        // this whole uart_chart fetching can happen in a function I guess?
-        if (uart_char != 0) {
-            int ch;
-            while (ch = getchar_timeout_us(10), ch != -1) {
-                printf("UART: %02x\r\n", ch);
-                uart_char = 0;
-
-                if (0x1d == ch) {
-                    dump_memory_to_stdout();
-                }
-            }
-
-        }
-         */
     }
 }
