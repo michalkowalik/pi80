@@ -10,7 +10,7 @@
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = false;
-bool debug2 = true;
+bool debug2 = false;
 int uart_char = 0;
 
 void init_pins() {
@@ -78,7 +78,6 @@ void uart_callback(void *context) {
     assert(context != NULL);
     int *i = (int *) context;
     *i = 1;
-    gpio_put(INT, 0);        // send request for interrupt
 }
 
 void read_from_uart(uint8_t  *ch) {
@@ -103,8 +102,6 @@ int main() {
     stdio_set_chars_available_callback(uart_callback, &uart_char);
 
     printf("Booting Pi80..\r\n");
-    printf("Press CTRL+[ to cycle the clock\r\n");
-    printf("Press CTRL+] to dump memory\r\n");
 
     // initialize CPU
     init_pins();
@@ -113,7 +110,7 @@ int main() {
     init_databus();
     init_addressbus();
 
-    // test_memory();
+    //test_memory();
     zero_memory();
     load_stage1_bootloader();
     dump_memory_to_stdout();
@@ -149,6 +146,10 @@ int main() {
     gpio_put(RST, 1);
 
     while (true) {
+        if (uart_char != 0) {
+            gpio_put(INT, 0); // trigger interrupt
+        }
+
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
@@ -169,7 +170,7 @@ int main() {
                         printf("%c", io_data);
                         break;
                     default:
-                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                        printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
                 }
 
                 // control bus sequence to exit from a wait state
@@ -182,6 +183,11 @@ int main() {
 
             }
             else if (gpio_get(RD) == 0) {
+
+                if (gpio_get(INT) == 0) {
+                    gpio_put(LED, 1);
+                }
+
                 uint32_t io_address = read_from_addressbus();
                 uint8_t  io_data = 0x00;
 
@@ -200,6 +206,7 @@ int main() {
                         io_data = 0xff;
                         read_from_uart(&io_data);
                         gpio_put(INT, 1);
+                        gpio_put(LED, 0);
                         break;
                     case 0x02:
                         // read boot phase 2 payload
@@ -210,7 +217,7 @@ int main() {
 
                         break;
                     default:
-                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                        printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
                 }
 
                 // send io_data to the databus

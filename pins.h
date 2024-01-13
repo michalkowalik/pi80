@@ -14,10 +14,10 @@
 
 // Address bus
 #define A0 8
-#define ADDRESS_BUS_WIDTH 8
+#define ADDRESS_BUS_WIDTH 6
 
 // control pins
-#define BUSREQ 16
+#define BUSREQ 14
 #define BUSACK 17
 #define CLK 18
 #define INT 19
