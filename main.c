@@ -76,43 +76,12 @@ void load_stage1_bootloader() {
     }
 }
 
-// let's skip the callback for now
-/*
-void uart_callback(void *context) {
-    assert(context != NULL);
-    int c;
-    while (c = getchar_timeout_us(0), c!= -1) {
-        uart_chars_buffer[uart_char_index++] = c;
-    }
-    int *i = (int *) context;
-    *i = 1;
-}
-*/
-// TODO: read from uart should look different. It should be non-blocking
-/*
-void read_from_uart(uint8_t  *ch) {
-    if (uart_char != 0) {
-        int c;
-        while (c = getchar_timeout_us(0), c != -1) {
-            *ch = c;
-        }
-        uart_char = 0;
-    }
-}
-*/
-/*
-void read_from_uart(char* char_buffer, uint8_t *buffer_index) {
-    int c;
-    while (c = getchar_timeout_us(0), c != -1) {
-        char_buffer[*buffer_index++] = c;
-    }
-}
-*/
 void uart0_irq_handler() {
     while (uart_is_readable(UART_ID)) {
         char c = uart_getc(UART_ID);
         printf("DEBUG: UART input: %c\r\n", c);
-        uart_chars_buffer[uart_char_index++] = c;
+        uart_char = c;
+        gpio_put(INT, 0); // trigger interrupt to Z80
     }
 }
 
@@ -136,8 +105,6 @@ int main() {
     pi_uart_init();
     sleep_ms(2000);
 
-    // stdio_set_chars_available_callback(uart_callback, &uart_char_index);
-
     printf("Booting Pi80..\r\n");
 
     // initialize CPU
@@ -148,9 +115,9 @@ int main() {
     init_addressbus();
 
     //test_memory();
-    zero_memory();
 
     load_stage1_bootloader();
+    zero_memory();
     load_stage1_bootloader();
 
     dump_memory_to_stdout();
@@ -186,13 +153,6 @@ int main() {
     gpio_put(RST, 1);
 
     while (true) {
-        // read_from_uart(uart_chars_buffer, &uart_char_index);
-        if (uart_char_index > 0) {
-            //printf("DEBUG: UART input: %s\r\n", uart_chars_buffer);
-            gpio_put(INT, 0); // trigger interrupt to Z80
-            sleep_us(1); // not sure if it makes sense..
-        }
-
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
@@ -247,10 +207,9 @@ int main() {
                         if (debug2) printf("Serial RX requested\r\n");
 
                         io_data = 0xff;
-
-                        if (uart_char_index > 0) {
-                            io_data = uart_chars_buffer[uart_char_index];
-                            uart_char_index--;
+                        if (uart_char != '\0') {
+                            io_data = uart_char;
+                            uart_char = '\0';
                         }
 
                         gpio_put(INT, 1);
