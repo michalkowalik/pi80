@@ -8,6 +8,9 @@
 
 #endif //PI80_PINS_H
 
+#define UART_ID uart0
+#define BAUD_RATE 115200
+
 // Data bus
 #define D0 0
 #define DATA_BUS_WIDTH 8
@@ -18,7 +21,9 @@
 
 // control pins
 #define BUSREQ 14
-#define BUSACK 17
+#define BUSACK 15
+#define UART_TX 16
+#define UART_RX 17
 #define CLK 18
 #define INT 19
 #define RST 20

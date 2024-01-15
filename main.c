@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include "pico/stdio.h"
+#include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
 #include "pio/pio_handlers.h"
 #include "pins.h"
@@ -11,7 +13,8 @@
 
 bool debug = false;
 bool debug2 = false;
-int uart_char = 0;
+char uart_char = '\0';
+
 
 void init_pins() {
 
@@ -32,7 +35,6 @@ void init_pins() {
     gpio_init(WAIT);
     gpio_pull_up(WAIT);
     gpio_set_dir(WAIT, GPIO_IN);
-
 
     // MREQ is output-only on the Z80. Should be default input with pull-up on pico
     gpio_init(MREQ);
@@ -74,12 +76,20 @@ void load_stage1_bootloader() {
     }
 }
 
+// let's skip the callback for now
+/*
 void uart_callback(void *context) {
     assert(context != NULL);
+    int c;
+    while (c = getchar_timeout_us(0), c!= -1) {
+        uart_chars_buffer[uart_char_index++] = c;
+    }
     int *i = (int *) context;
     *i = 1;
 }
-
+*/
+// TODO: read from uart should look different. It should be non-blocking
+/*
 void read_from_uart(uint8_t  *ch) {
     if (uart_char != 0) {
         int c;
@@ -89,30 +99,60 @@ void read_from_uart(uint8_t  *ch) {
         uart_char = 0;
     }
 }
+*/
+/*
+void read_from_uart(char* char_buffer, uint8_t *buffer_index) {
+    int c;
+    while (c = getchar_timeout_us(0), c != -1) {
+        char_buffer[*buffer_index++] = c;
+    }
+}
+*/
+void uart0_irq_handler() {
+    while (uart_is_readable(UART_ID)) {
+        char c = uart_getc(UART_ID);
+        printf("DEBUG: UART input: %c\r\n", c);
+        uart_chars_buffer[uart_char_index++] = c;
+    }
+}
+
+void pi_uart_init() {
+    // setup UART
+    uart_init(UART_ID, 115200);
+    gpio_set_function(UART_TX, GPIO_FUNC_UART);
+    gpio_set_function(UART_RX, GPIO_FUNC_UART);
+
+    irq_set_exclusive_handler(UART0_IRQ, uart0_irq_handler);
+    irq_set_enabled(UART0_IRQ, true);
+    uart_set_irq_enables(UART_ID, true, false);
+
+}
 
 int main() {
     uint index_stage2 = 0;      // index for stage 2 bootloader
 
     stdio_init_all();
+    stdio_usb_init();
+    pi_uart_init();
+    sleep_ms(2000);
 
-    // give the board (and Minicom) some time to connect to the serial interface
-    sleep_ms(1500);
-
-    // set callback for serial input
-    stdio_set_chars_available_callback(uart_callback, &uart_char);
+    // stdio_set_chars_available_callback(uart_callback, &uart_char_index);
 
     printf("Booting Pi80..\r\n");
 
     // initialize CPU
     init_pins();
-    sleep_ms(100);
+    sleep_ms(1000);
 
     init_databus();
     init_addressbus();
 
     //test_memory();
     zero_memory();
+
     load_stage1_bootloader();
+    load_stage1_bootloader();
+
     dump_memory_to_stdout();
 
     gpio_put(INT, 1);    // interrupt not active
@@ -146,8 +186,11 @@ int main() {
     gpio_put(RST, 1);
 
     while (true) {
-        if (uart_char != 0) {
-            gpio_put(INT, 0); // trigger interrupt
+        // read_from_uart(uart_chars_buffer, &uart_char_index);
+        if (uart_char_index > 0) {
+            //printf("DEBUG: UART input: %s\r\n", uart_chars_buffer);
+            gpio_put(INT, 0); // trigger interrupt to Z80
+            sleep_us(1); // not sure if it makes sense..
         }
 
         // IO operation requested
@@ -204,9 +247,13 @@ int main() {
                         if (debug2) printf("Serial RX requested\r\n");
 
                         io_data = 0xff;
-                        read_from_uart(&io_data);
+
+                        if (uart_char_index > 0) {
+                            io_data = uart_chars_buffer[uart_char_index];
+                            uart_char_index--;
+                        }
+
                         gpio_put(INT, 1);
-                        gpio_put(LED, 0);
                         break;
                     case 0x02:
                         // read boot phase 2 payload
