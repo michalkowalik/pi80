@@ -79,7 +79,7 @@ void load_stage1_bootloader() {
 void uart0_irq_handler() {
     while (uart_is_readable(UART_ID)) {
         char c = uart_getc(UART_ID);
-        printf("DEBUG: UART input: %c\r\n", c);
+        // printf("DEBUG: UART input: %c\r\n", c);
         uart_char = c;
         gpio_put(INT, 0); // trigger interrupt to Z80
     }
@@ -153,6 +153,11 @@ int main() {
     gpio_put(RST, 1);
 
     while (true) {
+        /*
+        if (gpio_get(INT) == 0) {
+            printf("DEBUG: Interrupt requested\r\n");
+        }
+*/
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
@@ -240,7 +245,14 @@ int main() {
 
 
             } else {
-                if (debug) printf("DEBUG: Interrupt requested?\r\n");
+                if (debug) printf("DEBUG: INT operation\r\n");
+
+                gpio_put(BUSREQ, 0);                       // Request for a DMA
+                gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);
+                gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);                       // resume normal operation
+
             }
         }
     }
