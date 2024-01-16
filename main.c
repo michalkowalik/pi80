@@ -1,15 +1,20 @@
 #include <stdio.h>
+#include "pico/stdio.h"
+#include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
 #include "pio/pio_handlers.h"
 #include "pins.h"
 #include "memory/memory.h"
 #include "boot_loader.h"
+#include "rom_data/basic.h"
 #include "slow_clock.h"
 
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = false;
-int uart_char = 0;
+bool debug2 = false;
+char uart_char = '\0';
+
 
 void init_pins() {
 
@@ -30,7 +35,6 @@ void init_pins() {
     gpio_init(WAIT);
     gpio_pull_up(WAIT);
     gpio_set_dir(WAIT, GPIO_IN);
-
 
     // MREQ is output-only on the Z80. Should be default input with pull-up on pico
     gpio_init(MREQ);
@@ -65,52 +69,57 @@ void init_pins() {
 
 void load_stage1_bootloader() {
     printf("Loading Stage 1 bootloader.\r\n");
-    uint16_t stage1_bootloader_length = sizeof(hello_world_screen) / sizeof(hello_world_screen[0]);
+    uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
     printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
-        set_memory_at(i, hello_world_screen[i]);
+        set_memory_at(i, boot_stage1[i]);
     }
 }
 
-void uart_callback(void *context) {
-    assert(context != NULL);
-    int *i = (int *) context;
-    *i = 1;
+void uart0_irq_handler() {
+    while (uart_is_readable(UART_ID)) {
+        char c = uart_getc(UART_ID);
+        // printf("DEBUG: UART input: %c\r\n", c);
+        uart_char = c;
+        gpio_put(INT, 0); // trigger interrupt to Z80
+    }
 }
 
-void read_from_uart(uint8_t  *ch) {
-    if (uart_char != 0) {
-        int c;
-        while (c = getchar_timeout_us(0), c != -1) {
-            *ch = c;
-        }
-        uart_char = 0;
-    }
+void pi_uart_init() {
+    // setup UART
+    uart_init(UART_ID, 115200);
+    gpio_set_function(UART_TX, GPIO_FUNC_UART);
+    gpio_set_function(UART_RX, GPIO_FUNC_UART);
+
+    irq_set_exclusive_handler(UART0_IRQ, uart0_irq_handler);
+    irq_set_enabled(UART0_IRQ, true);
+    uart_set_irq_enables(UART_ID, true, false);
+
 }
 
 int main() {
+    uint index_stage2 = 0;      // index for stage 2 bootloader
 
     stdio_init_all();
-
-    // give the board (and Minicom) some time to connect to the serial interface
-    sleep_ms(1500);
-
-    // set callback for serial input
-    stdio_set_chars_available_callback(uart_callback, &uart_char);
+    stdio_usb_init();
+    pi_uart_init();
+    sleep_ms(2000);
 
     printf("Booting Pi80..\r\n");
-    printf("Press CTRL+[ to cycle the clock\r\n");
-    printf("Press CTRL+] to dump memory\r\n");
 
     // initialize CPU
     init_pins();
+    sleep_ms(1000);
 
     init_databus();
     init_addressbus();
 
-    // test_memory();
+    //test_memory();
+
+    load_stage1_bootloader();
     zero_memory();
     load_stage1_bootloader();
+
     dump_memory_to_stdout();
 
     gpio_put(INT, 1);    // interrupt not active
@@ -144,6 +153,11 @@ int main() {
     gpio_put(RST, 1);
 
     while (true) {
+        /*
+        if (gpio_get(INT) == 0) {
+            printf("DEBUG: Interrupt requested\r\n");
+        }
+*/
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
@@ -164,14 +178,28 @@ int main() {
                         printf("%c", io_data);
                         break;
                     default:
-                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                        printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
                 }
-            // Read operation requested
-            } else if (gpio_get(RD) == 0) {
-                if (debug) printf("DEBUG: Read operation requested\r\n");
+
+                // control bus sequence to exit from a wait state
+                gpio_put(BUSREQ, 0);         // Request for a DMA
+                gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);                // TODO: 10us might be too much. Keep an eye on this
+                gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);         // resume normal operation
+
+
+            }
+            else if (gpio_get(RD) == 0) {
+
+                if (gpio_get(INT) == 0) {
+                    gpio_put(LED, 1);
+                }
 
                 uint32_t io_address = read_from_addressbus();
                 uint8_t  io_data = 0x00;
+
+                //if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
 
                 switch (io_address) {
                     case 0x00:
@@ -181,50 +209,51 @@ int main() {
                         // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
                         // NOTE 2: the INT_ signal is always reset (set to HIGH) after this I/O operation.
 
-                        if (debug) printf("Serial RX requested\r\n");
+                        if (debug2) printf("Serial RX requested\r\n");
 
                         io_data = 0xff;
-                        read_from_uart(&io_data);
+                        if (uart_char != '\0') {
+                            io_data = uart_char;
+                            uart_char = '\0';
+                        }
+
                         gpio_put(INT, 1);
                         break;
                     case 0x02:
                         // read boot phase 2 payload
+                        if (index_stage2 < stage2_basic_size) {
+                            io_data = stage2_basic[index_stage2];
+                            index_stage2++;
+                        }
 
                         break;
                     default:
-                        printf("DEBUG: Unknown or not implemented IO address\r\n");
+                        printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
                 }
 
                 // send io_data to the databus
-                // wait some microseconds to make sure Z80 fetched the data
-                // some rework on how to clear the interrupt is needed
+                send_to_databus(io_data);
+                while ((BusPio->irq & 0x1) != 1) {
+                    sleep_us(1);
+                }
+                gpio_put(BUSREQ, 0);                       // Request for a DMA
+                gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);                              // TODO: 10us might be too much. Keep an eye on this
+                pio_interrupt_clear(BusPio, DataBusIRQ);
+                gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);                       // resume normal operation
+
 
             } else {
-                if (debug) printf("DEBUG: Interrupt requested?\r\n");
+                if (debug) printf("DEBUG: INT operation\r\n");
+
+                gpio_put(BUSREQ, 0);                       // Request for a DMA
+                gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
+                sleep_us(10);
+                gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
+                gpio_put(BUSREQ, 1);                       // resume normal operation
+
             }
-            // control bus sequence to exit from a wait state
-            gpio_put(BUSREQ, 0);         // Request for a DMA
-            gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
-            sleep_us(100);
-            gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
-            gpio_put(BUSREQ, 1);         // resume normal operation
-
         }
-
-        /*
-        // this whole uart_chart fetching can happen in a function I guess?
-        if (uart_char != 0) {
-            int ch;
-            while (ch = getchar_timeout_us(10), ch != -1) {
-                printf("UART: %02x\r\n", ch);
-                uart_char = 0;
-
-                if (0x1d == ch) {
-                    dump_memory_to_stdout();
-                }
-            }
-
-        }
-         */
     }
 }

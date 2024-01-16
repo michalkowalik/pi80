@@ -6,7 +6,7 @@
   jmp x-- write          ; if LSB = 0 => reset pins
 
 read:
-  in pins, 8              ; read addressbus pins
+  in pins, 6              ; read addressbus pins
   nop [1]
   push
   jmp reset_bus
@@ -14,10 +14,10 @@ read:
 write:
   mov x, osr             ; move data from osr to x
   mov osr, !null         ; fill OSR wit 1s
-  out pindirs, 8         ; set databus pins to output
+  out pindirs, 6         ; set databus pins to output
 
   mov osr, x             ; move data from x to osr
-  out pins, 8            ; shift last 8 bits from OSR to the databus bins
+  out pins, 6            ; shift last 8 bits from OSR to the addressbus pins
 
   irq 1
   wait 0 irq 1          ; wait for the interrupt to be handled
@@ -25,7 +25,7 @@ write:
 reset_bus:
   mov x, null            ; move 0 to x
   mov osr, null         ; fill OSR wit 0s
-  out pindirs, 8         ; set databus pins to input
+  out pindirs, 6         ; set databus pins to input
 .wrap
 
 

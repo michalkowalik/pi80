@@ -36,3 +36,7 @@ pico_add_extra_outputs(pi80)
 # enable usb output, disable uart output
 pico_enable_stdio_usb(pi80 1)
 pico_enable_stdio_uart(pi80 0)
+target_compile_definitions(pi80 PRIVATE
+        PICO_DEFAULT_UART_TX_PIN=16
+        PICO_DEFAULT_UART_RX_PIN=17
+)

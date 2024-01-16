@@ -51,7 +51,7 @@ void dump_memory_to_stdout() {
     gpio_set_dir(MREQ, GPIO_OUT);
     gpio_set_dir(RD, GPIO_OUT);
 
-    for (uint addr = 0; addr <= 0xff; addr++) {
+    for (uint addr = 0; addr < 0x40; addr++) {
         send_to_addressbus(addr);
         while ((AddressPio->irq & 0x2) != 2) {
             sleep_us(10);
@@ -88,7 +88,7 @@ void dump_memory_to_stdout() {
 
 void test_memory() {
     printf("Write to memory addresses 0x00 - 0xff:\r\n");
-    for(uint addr = 0; addr <= 0xff; addr++) {
+    for(uint addr = 0; addr < 0x40; addr++) {
         set_memory_at(addr, addr);   // write NOP to memory
         if (addr % 16 == 0) {
             printf("\r\n%04x:  ", addr);
@@ -96,17 +96,16 @@ void test_memory() {
         printf("%02x,  ", addr);
     }
 
-    set_memory_at(0x00, 0x76);
 
     printf("\r\nConfirm write...\r\n");
-    printf("Read from addresses 0x00 - 0xff:\r\n");
+    printf("Read from addresses 0x00 - 0x40:\r\n");
 
     dump_memory_to_stdout();
     printf("\r\n");
 }
 
 void zero_memory() {
-    for(uint addr = 0; addr <= 0xff; addr++) {
+    for(uint addr = 0; addr < 0x40; addr++) {
         set_memory_at(addr, 0x00);
     }
 }

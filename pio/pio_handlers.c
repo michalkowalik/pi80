@@ -78,5 +78,5 @@ void send_to_addressbus(uint8_t address) {
 
 uint32_t read_from_addressbus() {
     pio_sm_put_blocking(AddressPio, AddressBusSM, 2); // non-zero, but LSB = 0
-    return pio_sm_get_blocking(AddressPio, AddressBusSM) >> 24;
+    return pio_sm_get_blocking(AddressPio, AddressBusSM) >> 26;
 }
