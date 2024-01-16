@@ -3,6 +3,8 @@
 #include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
 #include "pio/pio_handlers.h"
+
+#include "io_operations.h"
 #include "pins.h"
 #include "memory/memory.h"
 #include "boot_loader.h"
@@ -11,7 +13,7 @@
 
 #define PIO_CLOCK_ENABLED true;
 
-bool debug = false;
+bool debug = true;
 bool debug2 = false;
 char uart_char = '\0';
 
@@ -68,9 +70,9 @@ void init_pins() {
 
 
 void load_stage1_bootloader() {
-    printf("Loading Stage 1 bootloader.\r\n");
+    uart_printf("Loading Stage 1 bootloader.\r\n");
     uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
-    printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
+    uart_printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
         set_memory_at(i, boot_stage1[i]);
     }
@@ -79,7 +81,6 @@ void load_stage1_bootloader() {
 void uart0_irq_handler() {
     while (uart_is_readable(UART_ID)) {
         char c = uart_getc(UART_ID);
-        // printf("DEBUG: UART input: %c\r\n", c);
         uart_char = c;
         gpio_put(INT, 0); // trigger interrupt to Z80
     }
@@ -97,15 +98,13 @@ void pi_uart_init() {
 
 }
 
-int main() {
-    uint index_stage2 = 0;      // index for stage 2 bootloader
-
+void initialize_pi80() {
     stdio_init_all();
     stdio_usb_init();
     pi_uart_init();
     sleep_ms(2000);
 
-    printf("Booting Pi80..\r\n");
+    uart_printf("Booting Pi80..\r\n");
 
     // initialize CPU
     init_pins();
@@ -114,13 +113,12 @@ int main() {
     init_databus();
     init_addressbus();
 
-    //test_memory();
+    if (debug) test_memory();
 
-    load_stage1_bootloader();
     zero_memory();
     load_stage1_bootloader();
 
-    dump_memory_to_stdout();
+    if(debug) dump_memory_to_stdout();
 
     gpio_put(INT, 1);    // interrupt not active
     gpio_put(RST, 0);    // reset active
@@ -136,28 +134,26 @@ int main() {
     slow_clock_init();
 #endif
 
-    // set address and databus as input with pull-up
-    // (although that pull-up part is not clear to me)
-
     // set WR, RD and MREQ as inputs with pull-up
     gpio_set_dir(RD, GPIO_IN);
     gpio_set_dir(WE, GPIO_IN);
     gpio_set_dir(MREQ, GPIO_IN);
+}
 
+
+int main() {
+    uint index_stage2 = 0;      // index for stage 2 bootloader
+
+    initialize_pi80();
 
     // release reset. Z80 should start executing code from address 0x0000
-    printf("Stage 1 bootloader loaded. Releasing reset.\r\n\r\n");
+    uart_printf("Stage 1 bootloader loaded. Releasing reset.\r\n\r\n");
     sleep_ms(1000);
     gpio_put(WAIT_RES, 1);
     gpio_put(BUSREQ, 1);
     gpio_put(RST, 1);
 
     while (true) {
-        /*
-        if (gpio_get(INT) == 0) {
-            printf("DEBUG: Interrupt requested\r\n");
-        }
-*/
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
@@ -175,7 +171,7 @@ int main() {
                         break;
                     case 0x01:
                         if (debug) printf("Serial TX requested\r\n");
-                        printf("%c", io_data);
+                        uart_putc(UART_ID, io_data);
                         break;
                     default:
                         printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
@@ -191,15 +187,10 @@ int main() {
 
             }
             else if (gpio_get(RD) == 0) {
-
-                if (gpio_get(INT) == 0) {
-                    gpio_put(LED, 1);
-                }
-
                 uint32_t io_address = read_from_addressbus();
                 uint8_t  io_data = 0x00;
 
-                //if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
+                if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
 
                 switch (io_address) {
                     case 0x00:

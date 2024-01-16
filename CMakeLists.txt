@@ -21,7 +21,8 @@ add_executable(pi80 main.c
         slow_clock.c
         slow_clock.h
         rom_data/basic.h
-        io_operations.c)
+        io_operations.c
+        io_operations.h)
 
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/databus.pio)
 pico_generate_pio_header(pi80 ${CMAKE_CURRENT_LIST_DIR}/pio/addressbus.pio)
