@@ -16,7 +16,10 @@
 bool debug = true;
 bool debug2 = false;
 char uart_char = '\0';
+uint index_stage2 = 0;      // index for stage 2 bootloader
 
+void handle_io_write();
+void handle_io_read();
 
 void init_pins() {
 
@@ -38,11 +41,6 @@ void init_pins() {
     gpio_pull_up(WAIT);
     gpio_set_dir(WAIT, GPIO_IN);
 
-    // MREQ is output-only on the Z80. Should be default input with pull-up on pico
-    gpio_init(MREQ);
-    gpio_pull_up(MREQ);
-    gpio_set_dir(MREQ, GPIO_IN);
-
     // WAIT_RES flips the flip-flop and releases the WAIT state.
     gpio_init(WAIT_RES);
     gpio_pull_up(WAIT_RES);
@@ -53,14 +51,19 @@ void init_pins() {
     gpio_pull_up(BUSACK);
     gpio_set_dir(BUSACK, GPIO_IN);
 
-    // RD and WE are output-only on the Z80. Should be default input with pull-up on pico
+    // MEMRQ, RD and WE are output-only on the Z80. Should be default input with pull-up on pico
+    // we set them as input later, after the boot loader is loaded
     gpio_init(RD);
-    gpio_pull_up(RD);
-    gpio_set_dir(RD, GPIO_IN);
+    gpio_set_dir(RD, GPIO_OUT);
 
     gpio_init(WE);
     gpio_pull_up(WE);
-    gpio_set_dir(WE, GPIO_IN);
+    gpio_set_dir(WE, GPIO_OUT);
+
+    gpio_init(MREQ);
+    gpio_pull_up(MREQ);
+    gpio_set_dir(MREQ, GPIO_OUT);
+
 
     // User LED. no direct mapping to Z80
     gpio_init(LED);
@@ -72,7 +75,7 @@ void init_pins() {
 void load_stage1_bootloader() {
     uart_printf("Loading Stage 1 bootloader.\r\n");
     uint16_t stage1_bootloader_length = sizeof(boot_stage1) / sizeof(boot_stage1[0]);
-    uart_printf("Stage 1 bootloader length: %d\r\n", stage1_bootloader_length);
+    uart_printf("Stage 1 bootloader length: %d bytes.\r\n", stage1_bootloader_length);
     for (uint i = 0; i < stage1_bootloader_length; i++) {
         set_memory_at(i, boot_stage1[i]);
     }
@@ -108,10 +111,17 @@ void initialize_pi80() {
 
     // initialize CPU
     init_pins();
-    sleep_ms(1000);
+
+    gpio_put(INT, 1);    // interrupt not active
+    gpio_put(RST, 0);    // reset active
+    gpio_put(BUSREQ, 0); // bus request active
+    gpio_put(WAIT, 1);   // wait inactive
+    gpio_put(WAIT_RES, 0); // wait_res low to reset the flip-flop
 
     init_databus();
     init_addressbus();
+
+    sleep_ms(100);
 
     if (debug) test_memory();
 
@@ -120,11 +130,13 @@ void initialize_pi80() {
 
     if(debug) dump_memory_to_stdout();
 
-    gpio_put(INT, 1);    // interrupt not active
-    gpio_put(RST, 0);    // reset active
-    gpio_put(BUSREQ, 0); // bus request active
-    gpio_put(WAIT, 1);   // wait inactive
-    gpio_put(WAIT_RES, 0); // wait_res low to reset the flip-flop
+    // set WR, RD and MREQ as inputs with pull-up
+    gpio_set_dir(RD, GPIO_IN);
+    gpio_pull_up(RD);
+    gpio_set_dir(WE, GPIO_IN);
+    gpio_pull_up(WE);
+    gpio_set_dir(MREQ, GPIO_IN);
+    gpio_pull_up(MREQ);
 
 #ifdef PIO_CLOCK_ENABLED
     start_clock();
@@ -133,21 +145,100 @@ void initialize_pi80() {
     gpio_set_dir(CLK, GPIO_OUT);
     slow_clock_init();
 #endif
+}
 
-    // set WR, RD and MREQ as inputs with pull-up
-    gpio_set_dir(RD, GPIO_IN);
-    gpio_set_dir(WE, GPIO_IN);
-    gpio_set_dir(MREQ, GPIO_IN);
+void handle_io_write() {
+    if (debug) printf("DEBUG: Write operation requested\r\n");
+
+    // read Z80's address bus
+    uint32_t io_address = read_from_addressbus();
+    uint8_t io_data = read_from_databus() & 0xff;
+    if (debug) printf("DEBUG: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
+
+    switch (io_address) {
+        case 0x00:
+            printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+            break;
+        case 0x01:
+            if (debug) printf("Serial TX requested\r\n");
+            uart_putc(UART_ID, io_data);
+            break;
+        default:
+            printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
+    }
+
+    // control bus sequence to exit from a wait state
+    gpio_put(BUSREQ, 0);         // Request for a DMA
+    gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
+    sleep_us(10);                // TODO: 10us might be too much. Keep an eye on this
+    gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
+    gpio_put(BUSREQ, 1);         // resume normal operation
+}
+
+
+void handle_io_read() {
+    uint32_t io_address = read_from_addressbus();
+    uint8_t  io_data = 0x00;
+
+    if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
+
+    switch (io_address) {
+        case 0x00:
+            printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+            break;
+        case 0x01:
+            // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
+            // NOTE 2: the INT_ signal is always reset (set to HIGH) after this I/O operation.
+
+            if (debug2) printf("Serial RX requested\r\n");
+
+            io_data = 0xff;
+            if (uart_char != '\0') {
+                io_data = uart_char;
+                uart_char = '\0';
+            }
+
+            gpio_put(INT, 1);
+            break;
+        case 0x02:
+            // read boot phase 2 payload
+            if (index_stage2 < stage2_basic_size) {
+                io_data = stage2_basic[index_stage2];
+                index_stage2++;
+            }
+
+            break;
+        default:
+            printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
+    }
+
+    // send io_data to the databus
+    send_to_databus(io_data);
+    while ((BusPio->irq & 0x1) != 1) {
+        sleep_us(1);
+    }
+    gpio_put(BUSREQ, 0);                       // Request for a DMA
+    gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
+    sleep_us(10);                              // TODO: 10us might be too much. Keep an eye on this
+    pio_interrupt_clear(BusPio, DataBusIRQ);
+    gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
+    gpio_put(BUSREQ, 1);                       // resume normal operation
 }
 
 
 int main() {
-    uint index_stage2 = 0;      // index for stage 2 bootloader
 
     initialize_pi80();
 
     // release reset. Z80 should start executing code from address 0x0000
-    uart_printf("Stage 1 bootloader loaded. Releasing reset.\r\n\r\n");
+    uart_printf("Stage 1 bootloader loaded. Press any button to release Z80 from the reset.\r\n");
+    uart_char = '\0';
+    while (uart_char == '\0') {
+        sleep_ms(100);
+    }
+    uart_char = '\0';
+    uart_printf("\r\n");
+
     sleep_ms(1000);
     gpio_put(WAIT_RES, 1);
     gpio_put(BUSREQ, 1);
@@ -158,85 +249,13 @@ int main() {
         if (gpio_get(WAIT) == 0) {
             // Write operation requested
             if (gpio_get(WE) == 0) {
-                if (debug) printf("DEBUG: Write operation requested\r\n");
-
-                // read Z80's address bus
-                uint32_t io_address = read_from_addressbus();
-                uint8_t io_data = read_from_databus() & 0xff;
-                if (debug) printf("DEBUG: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
-
-                switch (io_address) {
-                    case 0x00:
-                        printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
-                        break;
-                    case 0x01:
-                        if (debug) printf("Serial TX requested\r\n");
-                        uart_putc(UART_ID, io_data);
-                        break;
-                    default:
-                        printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
-                }
-
-                // control bus sequence to exit from a wait state
-                gpio_put(BUSREQ, 0);         // Request for a DMA
-                gpio_put(WAIT_RES, 0);       // Reset WAIT flip-flop exiting from the wait state
-                sleep_us(10);                // TODO: 10us might be too much. Keep an eye on this
-                gpio_put(WAIT_RES, 1);       // now the Z80 is in DMA, so it's safe to set wait_res to 1
-                gpio_put(BUSREQ, 1);         // resume normal operation
-
-
+                handle_io_write();
             }
             else if (gpio_get(RD) == 0) {
-                uint32_t io_address = read_from_addressbus();
-                uint8_t  io_data = 0x00;
-
-                if (debug2) printf("DEBUG: Read operation from address %02lx requested\r\n", io_address);
-
-                switch (io_address) {
-                    case 0x00:
-                        printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
-                        break;
-                    case 0x01:
-                        // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
-                        // NOTE 2: the INT_ signal is always reset (set to HIGH) after this I/O operation.
-
-                        if (debug2) printf("Serial RX requested\r\n");
-
-                        io_data = 0xff;
-                        if (uart_char != '\0') {
-                            io_data = uart_char;
-                            uart_char = '\0';
-                        }
-
-                        gpio_put(INT, 1);
-                        break;
-                    case 0x02:
-                        // read boot phase 2 payload
-                        if (index_stage2 < stage2_basic_size) {
-                            io_data = stage2_basic[index_stage2];
-                            index_stage2++;
-                        }
-
-                        break;
-                    default:
-                        printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
-                }
-
-                // send io_data to the databus
-                send_to_databus(io_data);
-                while ((BusPio->irq & 0x1) != 1) {
-                    sleep_us(1);
-                }
-                gpio_put(BUSREQ, 0);                       // Request for a DMA
-                gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
-                sleep_us(10);                              // TODO: 10us might be too much. Keep an eye on this
-                pio_interrupt_clear(BusPio, DataBusIRQ);
-                gpio_put(WAIT_RES, 1);                     // now the Z80 is in DMA, so it's safe to set wait_res to 1
-                gpio_put(BUSREQ, 1);                       // resume normal operation
-
+                handle_io_read();
 
             } else {
-                if (debug) printf("DEBUG: INT operation\r\n");
+                //if (debug) printf("DEBUG: INT operation\r\n");
 
                 gpio_put(BUSREQ, 0);                       // Request for a DMA
                 gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
