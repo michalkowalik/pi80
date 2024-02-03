@@ -3,10 +3,8 @@
 import sys
 from textwrap import wrap
 
-class Hex2bin:
 
-    def __init__(self):
-        pass
+class Hex2bin:
 
     def convert(self, source_file, target_file):
         print(f"converting {source_file} to {target_file}")
@@ -17,15 +15,11 @@ class Hex2bin:
                     if data is not None and data != len(data) > 0:
                         target.write(bytes(data))
 
-
     def convert_line(self, line):
-        """
-        :param line:  intel hex endcoded data
-        :return:      binary format of the hex record
-        """
         if line[0] != ':':
             print("Error: line should start with \":\"")
             sys.exit(1)
+
         byte_count = int(line[1:3], 16)
         # bytes 3-7 are address, which we ignore here
         record_type = line[7:9]
@@ -42,10 +36,11 @@ class Hex2bin:
                 print(f"ignoring record of type {record_type}")
                 return
 
+
 def main():
-    args = sys.argv[:]
     hex2bin = Hex2bin()
-    hex2bin.convert(args[1], args[2])
+    hex2bin.convert(sys.argv[1], sys.argv[2])
+
 
 if __name__ == "__main__":
     main()
