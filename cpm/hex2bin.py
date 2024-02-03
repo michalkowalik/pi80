@@ -23,7 +23,6 @@ class Hex2bin:
         :param line:  intel hex endcoded data
         :return:      binary format of the hex record
         """
-        print("converting hex data : {line}")
         if line[0] != ':':
             print("Error: line should start with \":\"")
             sys.exit(1)
@@ -35,17 +34,13 @@ class Hex2bin:
 
         match record_type:
             case '00':
-                return self.convert_data(data)
+                return bytearray([int(x, 16) for x in wrap(data, 2)])
             case '01':
                 print("EOF")
                 return
             case _:
                 print(f"ignoring record of type {record_type}")
                 return
-
-    def convert_data(self, data):
-        data_bytes = wrap(data, 2)
-        return bytearray([int(x, 16) for x in data_bytes])
 
 def main():
     args = sys.argv[:]
