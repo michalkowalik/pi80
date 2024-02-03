@@ -239,9 +239,10 @@ int main() {
     uart_char = '\0';
     uart_printf("\r\n");
 
-    sleep_ms(1000);
+    sleep_ms(200);
     gpio_put(WAIT_RES, 1);
     gpio_put(BUSREQ, 1);
+    sleep_ms(200);
     gpio_put(RST, 1);
 
     while (true) {
