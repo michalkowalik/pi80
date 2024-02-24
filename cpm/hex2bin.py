@@ -12,7 +12,7 @@ class Hex2bin:
             with open(target_file, 'wb') as target:
                 for line in source:
                     data = self.convert_line(line)
-                    if data is not None and data != len(data) > 0:
+                    if data is not None and len(data) > 0:
                         target.write(bytes(data))
 
     def convert_line(self, line):
