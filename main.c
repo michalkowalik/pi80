@@ -91,7 +91,7 @@ void uart0_irq_handler() {
 
 void pi_uart_init() {
     // setup UART
-    uart_init(UART_ID, 115200);
+    uart_init(UART_ID, BAUD_RATE);
     gpio_set_function(UART_TX, GPIO_FUNC_UART);
     gpio_set_function(UART_RX, GPIO_FUNC_UART);
 
@@ -239,9 +239,10 @@ int main() {
     uart_char = '\0';
     uart_printf("\r\n");
 
-    sleep_ms(1000);
+    sleep_ms(200);
     gpio_put(WAIT_RES, 1);
     gpio_put(BUSREQ, 1);
+    sleep_ms(200);
     gpio_put(RST, 1);
 
     while (true) {

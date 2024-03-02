@@ -1,0 +1,3 @@
+[submodule "pi80per"]
+	path = pi80per
+	url = git@github.com:michalkowalik/pi80per.git

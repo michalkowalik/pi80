@@ -9,7 +9,8 @@
 #endif //PI80_PINS_H
 
 #define UART_ID uart0
-#define BAUD_RATE 115200
+#define BAUD_RATE 921600
+//#define BAUD_RATE 115200
 
 // Data bus
 #define D0 0
