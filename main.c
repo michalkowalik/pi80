@@ -11,6 +11,8 @@
 #include "rom_data/basic.h"
 #include "slow_clock.h"
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = true;
@@ -52,7 +54,7 @@ void init_pins() {
     gpio_set_dir(BUSACK, GPIO_IN);
 
     // MEMRQ, RD and WE are output-only on the Z80. Should be default input with pull-up on pico
-    // we set them as input later, after the boot loader is loaded
+    // we set them as input later, after the bootloader is loaded
     gpio_init(RD);
     gpio_set_dir(RD, GPIO_OUT);
 
@@ -161,10 +163,10 @@ void handle_io_write() {
             break;
         case 0x01:
             if (debug) printf("Serial TX requested\r\n");
-            uart_putc(UART_ID, io_data);
+            piper_uart_putc(io_data);
             break;
         default:
-            printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
+            printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n", io_address);
     }
 
     // control bus sequence to exit from a wait state
@@ -268,3 +270,5 @@ int main() {
         }
     }
 }
+
+#pragma clang diagnostic pop

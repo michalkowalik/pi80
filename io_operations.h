@@ -7,4 +7,7 @@
 
 void uart_printf(const char *format, ... );
 
+void piper_uart_puts(const char *str);
+void piper_uart_putc(uint8_t c);
+
 #endif //PI80_IO_OPERATIONS_H
