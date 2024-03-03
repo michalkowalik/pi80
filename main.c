@@ -83,6 +83,11 @@ void load_stage1_bootloader() {
     }
 }
 
+/*
+ * Handle data coming from Piper
+ * see pi80per's repo for the protocol description
+ * anything coming here is a command: it has a header and a payload
+ */
 void uart0_irq_handler() {
     uint8_t command;
 
@@ -118,12 +123,32 @@ void pi_uart_init() {
 }
 
 void initialize_pi80() {
+    uint8_t boot_choice = 0;
+
     stdio_init_all();
     stdio_usb_init();
     pi_uart_init();
-    sleep_ms(2000);
+    sleep_ms(3000);
 
-    uart_printf("Booting Pi80..\r\n");
+    uart_printf("Starting Pi80.\r\n");
+    sleep_ms(5);
+    uart_printf("Select boot mode:\r\n");
+    sleep_ms(5);
+    uart_printf("  1: BASIC\r\n");
+    sleep_ms(5);
+    uart_printf("  2: Forth\r\n");
+    sleep_ms(5);
+    uart_printf("  3: CP/M from DISK0\r\n");
+    sleep_ms(5);
+    uart_printf("> ");
+
+    while(uart_char == '\0') {
+        tight_loop_contents();
+    }
+    boot_choice = uart_char;
+    uart_char = '\0';
+    uart_printf("%c\r\n", boot_choice);
+
 
     // initialize CPU
     init_pins();
