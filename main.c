@@ -90,7 +90,14 @@ void uart0_irq_handler() {
         command = uart_getc(UART_ID);
         if (command == 1) {
             uart_char = uart_getc(UART_ID);
-            gpio_put(INT, 0); // trigger interrupt to Z80
+            gpio_put(INT, 0);                // trigger interrupt to Z80
+        }
+        else if (command == 7) {             // read floppy sector
+            uint8_t sector_len = uart_getc(UART_ID);
+            uint8_t i = 0;
+            while (i < sector_len)
+                *(sector_buffer + i++) = uart_getc(UART_ID);
+            sector_read_complete = true;
         } else {
             printf("DEBUG: Command received from UART: %02x\r\n", command);
         }
@@ -169,8 +176,37 @@ void handle_io_write() {
             printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
             break;
         case 0x01:
-            if (debug) printf("Serial TX requested\r\n");
+            if (debug2) printf("Serial TX requested\r\n");
             piper_uart_putc(io_data);
+            break;
+        case 0x09:
+            // disk emulation, SELDISK - select the disk number:
+            if (io_data < 4)
+                piper_set_disk_sel(io_data);
+            break;
+        case 0x0a:
+            // disk emulation, SETTRK - set the track number:
+            // word split in 2 bytes.
+            if (track_byte_counter == 0) {
+                track_sel = io_data;
+                track_byte_counter++;
+            } else {
+                track_sel = (io_data << 8) | (track_sel & 0xff);
+                track_byte_counter = 0;
+            }
+            break;
+        case 0x0b:
+            // disk emulation, SETSEC - set the sector number:
+            // word split in 2 bytes.
+            break;
+        case 0x0c:
+            // disk emulation, WRITESEC - write the sector to the disk
+            // write 128 subsequent data bytes to the current disk/track/sector
+
+            // collect data ..
+
+            // and send it
+            piper_write_floppy_sector(sector_buffer, SECTOR_SIZE);
             break;
         default:
             printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n", io_address);
@@ -193,7 +229,7 @@ void handle_io_read() {
 
     switch (io_address) {
         case 0x00:
-            printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+            if (debug) printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
             break;
         case 0x01:
             // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
@@ -215,8 +251,24 @@ void handle_io_read() {
                 io_data = stage2_basic[index_stage2];
                 index_stage2++;
             }
-
             break;
+        case 0x05:
+            // disk emulation, ERRDISK - read the error status of the disk
+            if (debug) printf("DEBUG: Read disk error status\r\n");
+            break;
+        case 0x06:
+            // disk emulation, READSEC - read the sector from the disk
+            // read 128 subsequent data bytes from the current disk/track/sector
+            if (debug) printf("DEBUG: Read sector from disk\r\n");
+            piper_read_floppy_sector();
+
+            // data is in the sector_buffer, send it to the Z80
+            break;
+
+        case 0x07:
+            // sysflags (various system flags for the OS)
+            break;
+
         default:
             printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
     }
