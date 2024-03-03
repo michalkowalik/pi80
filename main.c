@@ -84,10 +84,17 @@ void load_stage1_bootloader() {
 }
 
 void uart0_irq_handler() {
+    uint8_t command;
+
     while (uart_is_readable(UART_ID)) {
-        char c = uart_getc(UART_ID);
-        uart_char = c;
-        gpio_put(INT, 0); // trigger interrupt to Z80
+        command = uart_getc(UART_ID);
+        if (command == 1) {
+            uart_char = uart_getc(UART_ID);
+            gpio_put(INT, 0); // trigger interrupt to Z80
+        } else {
+            printf("DEBUG: Command received from UART: %02x\r\n", command);
+        }
+
     }
 }
 
