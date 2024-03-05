@@ -123,14 +123,14 @@ void pi_uart_init() {
 }
 
 void initialize_pi80() {
-    uint8_t boot_choice = 0;
+  //  uint8_t boot_choice = 0;
 
     stdio_init_all();
     stdio_usb_init();
     pi_uart_init();
     sleep_ms(3000);
-
     uart_printf("Starting Pi80.\r\n");
+/*
     sleep_ms(5);
     uart_printf("Select boot mode:\r\n");
     sleep_ms(5);
@@ -142,13 +142,14 @@ void initialize_pi80() {
     sleep_ms(5);
     uart_printf("> ");
 
+    uart_char = '\0';
     while(uart_char == '\0') {
-        tight_loop_contents();
+        sleep_ms(100);
     }
     boot_choice = uart_char;
     uart_char = '\0';
     uart_printf("%c\r\n", boot_choice);
-
+*/
 
     // initialize CPU
     init_pins();
@@ -317,7 +318,7 @@ int main() {
     initialize_pi80();
 
     // release reset. Z80 should start executing code from address 0x0000
-    uart_printf("Stage 1 bootloader loaded. Press any button to release Z80 from the reset.\r\n");
+    uart_printf("Stage 1 bootloader loaded. Press any key to release Z80 from the reset.\r\n");
     uart_char = '\0';
     while (uart_char == '\0') {
         sleep_ms(100);
@@ -331,6 +332,8 @@ int main() {
     sleep_ms(200);
     gpio_put(RST, 1);
 
+    printf("DEBUG: Z80 released from reset. Waiting for IO operations.\r\n");
+
     while (true) {
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
@@ -342,7 +345,7 @@ int main() {
                 handle_io_read();
 
             } else {
-                //if (debug) printf("DEBUG: INT operation\r\n");
+                if (debug) printf("DEBUG: INT operation\r\n");
 
                 gpio_put(BUSREQ, 0);                       // Request for a DMA
                 gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state

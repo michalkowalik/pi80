@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <hardware/uart.h>
+#include <pico/time.h>
 #include "pins.h"
 #include "io_operations.h"
 
@@ -57,7 +58,7 @@ void piper_read_floppy_sector() {
 
     // wait for the floppy to respond
     while (!sector_read_complete) {
-        tight_loop_contents();
+        sleep_us(10);
     }
 
     // at this point, the sector buffer should be filled with the data
