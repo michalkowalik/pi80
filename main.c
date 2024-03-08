@@ -9,6 +9,8 @@
 #include "memory/memory.h"
 #include "boot_loader.h"
 #include "rom_data/basic.h"
+#include "rom_data/forth.h"
+#include "rom_data/cpm.h"
 #include "slow_clock.h"
 
 #pragma clang diagnostic push
@@ -17,7 +19,10 @@
 
 bool debug = true;
 bool debug2 = false;
+bool Z80_interrupt_flag = false;
 char uart_char = '\0';
+uint8_t *stage2;
+uint16_t stage2_size;
 uint index_stage2 = 0;      // index for stage 2 bootloader
 
 void handle_io_write();
@@ -95,7 +100,8 @@ void uart0_irq_handler() {
         command = uart_getc(UART_ID);
         if (command == 1) {
             uart_char = uart_getc(UART_ID);
-            gpio_put(INT, 0);                // trigger interrupt to Z80
+            if (Z80_interrupt_flag)
+                gpio_put(INT, 0);                // trigger interrupt to Z80
         }
         else if (command == 7) {             // read floppy sector
             uint8_t sector_len = uart_getc(UART_ID);
@@ -113,6 +119,7 @@ void uart0_irq_handler() {
 void pi_uart_init() {
     // setup UART
     uart_init(UART_ID, BAUD_RATE);
+    uart_set_fifo_enabled(UART_ID, true);
     gpio_set_function(UART_TX, GPIO_FUNC_UART);
     gpio_set_function(UART_RX, GPIO_FUNC_UART);
 
@@ -123,14 +130,14 @@ void pi_uart_init() {
 }
 
 void initialize_pi80() {
-  //  uint8_t boot_choice = 0;
+    uint8_t boot_choice = 0;
 
     stdio_init_all();
     stdio_usb_init();
     pi_uart_init();
     sleep_ms(3000);
     uart_printf("Starting Pi80.\r\n");
-/*
+
     sleep_ms(5);
     uart_printf("Select boot mode:\r\n");
     sleep_ms(5);
@@ -149,7 +156,36 @@ void initialize_pi80() {
     boot_choice = uart_char;
     uart_char = '\0';
     uart_printf("%c\r\n", boot_choice);
-*/
+
+    // modify the starting address of the stage 2 bootloader
+    // modify the length of the stage 2 bootloader
+    switch (boot_choice) {
+        case '2':
+            boot_stage1[2] = stage2_forth_start_address & 0xff;
+            boot_stage1[3] = (stage2_forth_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_forth_size & 0xff;
+            boot_stage1[5] = (stage2_forth_size >> 8) & 0xff;
+            stage2 = stage2_forth;
+            stage2_size = stage2_forth_size;
+            break;
+        case '3':
+            boot_stage1[2] = stage2_cpm_start_address & 0xff;
+            boot_stage1[3] = (stage2_cpm_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_cpm_loader_size & 0xff;
+            boot_stage1[5] = (stage2_cpm_loader_size >> 8) & 0xff;
+            stage2 = stage2_cpm_loader;
+            stage2_size = stage2_cpm_loader_size;
+            break;
+        default:
+            boot_stage1[2] = stage2_basic_start_address & 0xff;
+            boot_stage1[3] = (stage2_basic_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_basic_size & 0xff;
+            boot_stage1[5] = (stage2_basic_size >> 8) & 0xff;
+            stage2 = stage2_basic;
+            stage2_size = stage2_basic_size;
+            Z80_interrupt_flag = true;
+            break;
+    }
 
     // initialize CPU
     init_pins();
@@ -268,15 +304,13 @@ void handle_io_read() {
                 io_data = uart_char;
                 uart_char = '\0';
             }
-
-            gpio_put(INT, 1);
+            if (Z80_interrupt_flag)
+                gpio_put(INT, 1);
             break;
         case 0x02:
             // read boot phase 2 payload
-            if (index_stage2 < stage2_basic_size) {
-                io_data = stage2_basic[index_stage2];
-                index_stage2++;
-            }
+            if (index_stage2 < stage2_size)
+                io_data = *(stage2 + index_stage2++);
             break;
         case 0x05:
             // disk emulation, ERRDISK - read the error status of the disk
