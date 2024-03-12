@@ -24,6 +24,8 @@ char uart_char = '\0';
 uint8_t *stage2;
 uint16_t stage2_size;
 uint index_stage2 = 0;      // index for stage 2 bootloader
+uint8_t disk_error = 0;
+
 
 void handle_io_write();
 void handle_io_read();
@@ -103,14 +105,20 @@ void uart0_irq_handler() {
             if (Z80_interrupt_flag)
                 gpio_put(INT, 0);                // trigger interrupt to Z80
         }
+        else if (command == 4 || command == 3 || command == 2) { // floppy operation confirmation
+            uint8_t floppy_status = uart_getc(UART_ID);
+            if (debug)
+                printf("DEBUG: Floppy operation %d confirmation received: %d\r\n", command, floppy_status);
+            floppy_operation_complete = true;
+        }
         else if (command == 7) {             // read floppy sector
             uint8_t sector_len = uart_getc(UART_ID);
             uint8_t i = 0;
             while (i < sector_len)
                 *(sector_buffer + i++) = uart_getc(UART_ID);
-            sector_read_complete = true;
+            floppy_operation_complete = true;
         } else {
-            printf("DEBUG: Command received from UART: %02x\r\n", command);
+            printf("Unknown Command received from UART: %02x\r\n", command);
         }
 
     }
@@ -150,12 +158,12 @@ void initialize_pi80() {
     uart_printf("> ");
 
     uart_char = '\0';
-    while(uart_char == '\0') {
+    while(uart_char == '\0' || uart_char == 255) {
         sleep_ms(100);
     }
     boot_choice = uart_char;
     uart_char = '\0';
-    uart_printf("%c\r\n", boot_choice);
+    uart_printf("|%d|\r\n", boot_choice);
 
     // modify the starting address of the stage 2 bootloader
     // modify the length of the stage 2 bootloader
@@ -226,12 +234,10 @@ void initialize_pi80() {
 }
 
 void handle_io_write() {
-    if (debug) printf("DEBUG: Write operation requested\r\n");
-
     // read Z80's address bus
     uint32_t io_address = read_from_addressbus();
     uint8_t io_data = read_from_databus() & 0xff;
-    if (debug) printf("DEBUG: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
+    if (debug2) printf("DEBUG: WR: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
 
     switch (io_address) {
         case 0x00:
@@ -243,27 +249,43 @@ void handle_io_write() {
             break;
         case 0x09:
             // disk emulation, SELDISK - select the disk number:
+            printf("DEBUG: Disk selection requested\r\n");
             if (io_data < 4)
                 piper_set_disk_sel(io_data);
             break;
         case 0x0a:
             // disk emulation, SETTRK - set the track number:
             // word split in 2 bytes.
+            printf("DEBUG: Set track number requested\r\n");
+
             if (track_byte_counter == 0) {
                 track_sel = io_data;
                 track_byte_counter++;
             } else {
+                // track_sel is a 16-bit word
                 track_sel = (io_data << 8) | (track_sel & 0xff);
                 track_byte_counter = 0;
+                piper_set_track((track_sel & 0xff));
             }
             break;
         case 0x0b:
             // disk emulation, SETSEC - set the sector number:
             // word split in 2 bytes.
+            printf("DEBUG: Set sector number requested\r\n");
+            if (sector_byte_counter == 0) {
+                sector_sel = io_data;
+                sector_byte_counter++;
+            } else {
+                sector_sel = (io_data << 8) | (sector_sel & 0xff);
+                sector_byte_counter = 0;
+                piper_set_sector((sector_sel & 0xff));
+            }
             break;
         case 0x0c:
             // disk emulation, WRITESEC - write the sector to the disk
             // write 128 subsequent data bytes to the current disk/track/sector
+            printf("DEBUG: Write sector to disk\r\n");
+
 
             // collect data ..
 
@@ -315,14 +337,24 @@ void handle_io_read() {
         case 0x05:
             // disk emulation, ERRDISK - read the error status of the disk
             if (debug) printf("DEBUG: Read disk error status\r\n");
+            io_data = disk_error;
             break;
         case 0x06:
             // disk emulation, READSEC - read the sector from the disk
             // read 128 subsequent data bytes from the current disk/track/sector
             if (debug) printf("DEBUG: Read sector from disk\r\n");
-            piper_read_floppy_sector();
+
+            // read the sector from the floppy, if not already read
+            if (sector_byte_counter == 0)
+                piper_read_floppy_sector();
 
             // data is in the sector_buffer, send it to the Z80
+            if (sector_byte_counter < SECTOR_SIZE) {
+                io_data = *(sector_buffer + sector_byte_counter++);
+            } else {
+                disk_error = 0x09; // I/O byte counter overrun
+                sector_byte_counter = 0;
+            }
             break;
 
         case 0x07:
@@ -379,7 +411,7 @@ int main() {
                 handle_io_read();
 
             } else {
-                if (debug) printf("DEBUG: INT operation\r\n");
+                if (debug2) printf("DEBUG: INT operation\r\n");
 
                 gpio_put(BUSREQ, 0);                       // Request for a DMA
                 gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
