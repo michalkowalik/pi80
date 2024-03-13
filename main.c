@@ -358,6 +358,8 @@ void handle_io_read() {
 
         case 0x07:
             // sysflags (various system flags for the OS)
+            // currently, seeting only autoexecFlag to false:
+            io_data = 0x00;
             break;
 
         default:
