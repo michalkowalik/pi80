@@ -9,14 +9,23 @@
 #include "memory/memory.h"
 #include "boot_loader.h"
 #include "rom_data/basic.h"
+#include "rom_data/forth.h"
+#include "rom_data/cpm.h"
 #include "slow_clock.h"
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"
 #define PIO_CLOCK_ENABLED true;
 
 bool debug = true;
 bool debug2 = false;
+bool Z80_interrupt_flag = false;
 char uart_char = '\0';
+uint8_t *stage2;
+uint16_t stage2_size;
 uint index_stage2 = 0;      // index for stage 2 bootloader
+uint8_t disk_error = 0;
+
 
 void handle_io_write();
 void handle_io_read();
@@ -52,7 +61,7 @@ void init_pins() {
     gpio_set_dir(BUSACK, GPIO_IN);
 
     // MEMRQ, RD and WE are output-only on the Z80. Should be default input with pull-up on pico
-    // we set them as input later, after the boot loader is loaded
+    // we set them as input later, after the bootloader is loaded
     gpio_init(RD);
     gpio_set_dir(RD, GPIO_OUT);
 
@@ -81,17 +90,44 @@ void load_stage1_bootloader() {
     }
 }
 
+/*
+ * Handle data coming from Piper
+ * see pi80per's repo for the protocol description
+ * anything coming here is a command: it has a header and a payload
+ */
 void uart0_irq_handler() {
+    uint8_t command;
+
     while (uart_is_readable(UART_ID)) {
-        char c = uart_getc(UART_ID);
-        uart_char = c;
-        gpio_put(INT, 0); // trigger interrupt to Z80
+        command = uart_getc(UART_ID);
+        if (command == 1) {
+            uart_char = uart_getc(UART_ID);
+            if (Z80_interrupt_flag)
+                gpio_put(INT, 0);                // trigger interrupt to Z80
+        }
+        else if (command == 4 || command == 3 || command == 2) { // floppy operation confirmation
+            uint8_t floppy_status = uart_getc(UART_ID);
+            if (debug)
+                printf("DEBUG: Floppy operation %d confirmation received: %d\r\n", command, floppy_status);
+            floppy_operation_complete = true;
+        }
+        else if (command == 7) {             // read floppy sector
+            uint8_t sector_len = uart_getc(UART_ID);
+            uint8_t i = 0;
+            while (i < sector_len)
+                *(sector_buffer + i++) = uart_getc(UART_ID);
+            floppy_operation_complete = true;
+        } else {
+            printf("Unknown Command received from UART: %02x\r\n", command);
+        }
+
     }
 }
 
 void pi_uart_init() {
     // setup UART
     uart_init(UART_ID, BAUD_RATE);
+    uart_set_fifo_enabled(UART_ID, true);
     gpio_set_function(UART_TX, GPIO_FUNC_UART);
     gpio_set_function(UART_RX, GPIO_FUNC_UART);
 
@@ -102,12 +138,62 @@ void pi_uart_init() {
 }
 
 void initialize_pi80() {
+    uint8_t boot_choice = 0;
+
     stdio_init_all();
     stdio_usb_init();
     pi_uart_init();
-    sleep_ms(2000);
+    sleep_ms(3000);
+    uart_printf("Starting Pi80.\r\n");
 
-    uart_printf("Booting Pi80..\r\n");
+    sleep_ms(5);
+    uart_printf("Select boot mode:\r\n");
+    sleep_ms(5);
+    uart_printf("  1: BASIC\r\n");
+    sleep_ms(5);
+    uart_printf("  2: Forth\r\n");
+    sleep_ms(5);
+    uart_printf("  3: CP/M from DISK0\r\n");
+    sleep_ms(5);
+    uart_printf("> ");
+
+    uart_char = '\0';
+    while(uart_char == '\0' || uart_char == 255) {
+        sleep_ms(100);
+    }
+    boot_choice = uart_char;
+    uart_char = '\0';
+    uart_printf("|%d|\r\n", boot_choice);
+
+    // modify the starting address of the stage 2 bootloader
+    // modify the length of the stage 2 bootloader
+    switch (boot_choice) {
+        case '2':
+            boot_stage1[2] = stage2_forth_start_address & 0xff;
+            boot_stage1[3] = (stage2_forth_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_forth_size & 0xff;
+            boot_stage1[5] = (stage2_forth_size >> 8) & 0xff;
+            stage2 = stage2_forth;
+            stage2_size = stage2_forth_size;
+            break;
+        case '3':
+            boot_stage1[2] = stage2_cpm_start_address & 0xff;
+            boot_stage1[3] = (stage2_cpm_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_cpm_loader_size & 0xff;
+            boot_stage1[5] = (stage2_cpm_loader_size >> 8) & 0xff;
+            stage2 = stage2_cpm_loader;
+            stage2_size = stage2_cpm_loader_size;
+            break;
+        default:
+            boot_stage1[2] = stage2_basic_start_address & 0xff;
+            boot_stage1[3] = (stage2_basic_start_address >> 8) & 0xff;
+            boot_stage1[4] = stage2_basic_size & 0xff;
+            boot_stage1[5] = (stage2_basic_size >> 8) & 0xff;
+            stage2 = stage2_basic;
+            stage2_size = stage2_basic_size;
+            Z80_interrupt_flag = true;
+            break;
+    }
 
     // initialize CPU
     init_pins();
@@ -148,23 +234,66 @@ void initialize_pi80() {
 }
 
 void handle_io_write() {
-    if (debug) printf("DEBUG: Write operation requested\r\n");
-
     // read Z80's address bus
     uint32_t io_address = read_from_addressbus();
     uint8_t io_data = read_from_databus() & 0xff;
-    if (debug) printf("DEBUG: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
+    if (debug2) printf("DEBUG: WR: IO address: %02lx, IO Data: %02x\r\n", io_address, io_data);
 
     switch (io_address) {
         case 0x00:
             printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
             break;
         case 0x01:
-            if (debug) printf("Serial TX requested\r\n");
-            uart_putc(UART_ID, io_data);
+            if (debug2) printf("Serial TX requested\r\n");
+            piper_uart_putc(io_data);
+            break;
+        case 0x09:
+            // disk emulation, SELDISK - select the disk number:
+            printf("DEBUG: Disk selection requested\r\n");
+            if (io_data < 4)
+                piper_set_disk_sel(io_data);
+            break;
+        case 0x0a:
+            // disk emulation, SETTRK - set the track number:
+            // word split in 2 bytes.
+            printf("DEBUG: Set track number requested\r\n");
+
+            if (track_byte_counter == 0) {
+                track_sel = io_data;
+                track_byte_counter++;
+            } else {
+                // track_sel is a 16-bit word
+                track_sel = (io_data << 8) | (track_sel & 0xff);
+                track_byte_counter = 0;
+                piper_set_track((track_sel & 0xff));
+            }
+            break;
+        case 0x0b:
+            // disk emulation, SETSEC - set the sector number:
+            // word split in 2 bytes.
+            printf("DEBUG: Set sector number requested\r\n");
+            if (sector_byte_counter == 0) {
+                sector_sel = io_data;
+                sector_byte_counter++;
+            } else {
+                sector_sel = (io_data << 8) | (sector_sel & 0xff);
+                sector_byte_counter = 0;
+                piper_set_sector((sector_sel & 0xff));
+            }
+            break;
+        case 0x0c:
+            // disk emulation, WRITESEC - write the sector to the disk
+            // write 128 subsequent data bytes to the current disk/track/sector
+            printf("DEBUG: Write sector to disk\r\n");
+
+
+            // collect data ..
+
+            // and send it
+            piper_write_floppy_sector(sector_buffer, SECTOR_SIZE);
             break;
         default:
-            printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n"), io_address;
+            printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n", io_address);
     }
 
     // control bus sequence to exit from a wait state
@@ -184,7 +313,7 @@ void handle_io_read() {
 
     switch (io_address) {
         case 0x00:
-            printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
+            if (debug) printf("DEBUG: IO Address 0x00. No operation implemented\r\n");
             break;
         case 0x01:
             // NOTE 1: if there is no input char, a value 0xFF is forced as input char.
@@ -197,17 +326,41 @@ void handle_io_read() {
                 io_data = uart_char;
                 uart_char = '\0';
             }
-
-            gpio_put(INT, 1);
+            if (Z80_interrupt_flag)
+                gpio_put(INT, 1);
             break;
         case 0x02:
             // read boot phase 2 payload
-            if (index_stage2 < stage2_basic_size) {
-                io_data = stage2_basic[index_stage2];
-                index_stage2++;
-            }
-
+            if (index_stage2 < stage2_size)
+                io_data = *(stage2 + index_stage2++);
             break;
+        case 0x05:
+            // disk emulation, ERRDISK - read the error status of the disk
+            if (debug) printf("DEBUG: Read disk error status\r\n");
+            io_data = disk_error;
+            break;
+        case 0x06:
+            // disk emulation, READSEC - read the sector from the disk
+            // read 128 subsequent data bytes from the current disk/track/sector
+            if (debug) printf("DEBUG: Read sector from disk\r\n");
+
+            // read the sector from the floppy, if not already read
+            if (sector_byte_counter == 0)
+                piper_read_floppy_sector();
+
+            // data is in the sector_buffer, send it to the Z80
+            if (sector_byte_counter < SECTOR_SIZE) {
+                io_data = *(sector_buffer + sector_byte_counter++);
+            } else {
+                disk_error = 0x09; // I/O byte counter overrun
+                sector_byte_counter = 0;
+            }
+            break;
+
+        case 0x07:
+            // sysflags (various system flags for the OS)
+            break;
+
         default:
             printf("DEBUG: Read request from unknown or not implemented IO address: %02lx\r\n", io_address);
     }
@@ -231,7 +384,7 @@ int main() {
     initialize_pi80();
 
     // release reset. Z80 should start executing code from address 0x0000
-    uart_printf("Stage 1 bootloader loaded. Press any button to release Z80 from the reset.\r\n");
+    uart_printf("Stage 1 bootloader loaded. Press any key to release Z80 from the reset.\r\n");
     uart_char = '\0';
     while (uart_char == '\0') {
         sleep_ms(100);
@@ -245,6 +398,8 @@ int main() {
     sleep_ms(200);
     gpio_put(RST, 1);
 
+    printf("DEBUG: Z80 released from reset. Waiting for IO operations.\r\n");
+
     while (true) {
         // IO operation requested
         if (gpio_get(WAIT) == 0) {
@@ -256,7 +411,7 @@ int main() {
                 handle_io_read();
 
             } else {
-                //if (debug) printf("DEBUG: INT operation\r\n");
+                if (debug2) printf("DEBUG: INT operation\r\n");
 
                 gpio_put(BUSREQ, 0);                       // Request for a DMA
                 gpio_put(WAIT_RES, 0);                     // Reset WAIT flip-flop exiting from the wait state
@@ -268,3 +423,5 @@ int main() {
         }
     }
 }
+
+#pragma clang diagnostic pop
