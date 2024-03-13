@@ -24,7 +24,6 @@ char uart_char = '\0';
 uint8_t *stage2;
 uint16_t stage2_size;
 uint index_stage2 = 0;      // index for stage 2 bootloader
-uint8_t disk_error = 0;
 
 
 void handle_io_write();
@@ -258,13 +257,13 @@ void handle_io_write() {
             // word split in 2 bytes.
             printf("DEBUG: Set track number requested\r\n");
 
-            if (track_byte_counter == 0) {
+            if (track_byte_sel == 0) {
                 track_sel = io_data;
-                track_byte_counter++;
+                track_byte_sel++;
             } else {
                 // track_sel is a 16-bit word
                 track_sel = (io_data << 8) | (track_sel & 0xff);
-                track_byte_counter = 0;
+                track_byte_sel = 0;
                 piper_set_track((track_sel & 0xff));
             }
             break;
@@ -272,12 +271,12 @@ void handle_io_write() {
             // disk emulation, SETSEC - set the sector number:
             // word split in 2 bytes.
             printf("DEBUG: Set sector number requested\r\n");
-            if (sector_byte_counter == 0) {
+            if (sector_byte_sel == 0) {
                 sector_sel = io_data;
-                sector_byte_counter++;
+                sector_byte_sel++;
             } else {
                 sector_sel = (io_data << 8) | (sector_sel & 0xff);
-                sector_byte_counter = 0;
+                sector_byte_sel = 0;
                 piper_set_sector((sector_sel & 0xff));
             }
             break;
@@ -336,7 +335,7 @@ void handle_io_read() {
             break;
         case 0x05:
             // disk emulation, ERRDISK - read the error status of the disk
-            if (debug) printf("DEBUG: Read disk error status\r\n");
+            if (debug) printf("DEBUG: Read disk error status (%02x)\r\n", disk_error);
             io_data = disk_error;
             break;
         case 0x06:
@@ -352,8 +351,8 @@ void handle_io_read() {
             if (sector_byte_counter < SECTOR_SIZE) {
                 io_data = *(sector_buffer + sector_byte_counter++);
             } else {
+                printf("DEBUG: Sector read complete\r\n");
                 disk_error = 0x09; // I/O byte counter overrun
-                sector_byte_counter = 0;
             }
             break;
 
