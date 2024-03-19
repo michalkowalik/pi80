@@ -104,7 +104,7 @@ void uart0_irq_handler() {
             if (Z80_interrupt_flag)
                 gpio_put(INT, 0);                // trigger interrupt to Z80
         }
-        else if (command == 4 || command == 3 || command == 2) { // floppy operation confirmation
+        else if (command == 4 || command == 3 || command == 2 || command == 6) { // floppy operation confirmation
             uint8_t floppy_status = uart_getc(UART_ID);
             if (debug)
                 printf("DEBUG: Floppy operation %d confirmation received: %d\r\n", command, floppy_status);
@@ -288,13 +288,17 @@ void handle_io_write() {
         case 0x0c:
             // disk emulation, WRITESEC - write the sector to the disk
             // write 128 subsequent data bytes to the current disk/track/sector
-            printf("DEBUG: Write sector to disk\r\n");
-
+            if (debug && sector_byte_counter == 0)
+                printf("DEBUG: Write sector to disk, counter = %d\r\n", sector_byte_counter);
 
             // collect data ..
+            if (sector_byte_counter < SECTOR_SIZE) {
+                *(sector_buffer + sector_byte_counter++) = io_data;
+            }
 
             // and send it
-            piper_write_floppy_sector(sector_buffer, SECTOR_SIZE);
+            if (sector_byte_counter == SECTOR_SIZE - 1)
+                piper_write_floppy_sector(sector_buffer, SECTOR_SIZE);
             break;
         default:
             printf("DEBUG: Write request from unknown or not implemented IO address: %02lx\r\n", io_address);
