@@ -51,7 +51,7 @@ void piper_uart_putc(uint8_t c) {
 }
 
 /*
- * !! because write sectore and read sector do not reset it's counter, it is being set to 0 in the
+ * !! because write sector and read sector do not reset it's counter, it is being set to 0 in the
  *    set_disk_sel.
  *    Additionally, the disk_error is also being cleaned up.
  */
@@ -111,9 +111,16 @@ void piper_read_floppy_sector() {
 }
 
 void piper_write_floppy_sector(uint8_t *data, uint8_t data_length) {
+    floppy_operation_complete = false;
+
     uint8_t request[] = {0x06, data_length};
     uart_write_blocking(UART_ID, request, 2);
     uart_write_blocking(UART_ID, data, data_length);
+
+    // wait for the floppy to respond
+    while (!floppy_operation_complete) {
+        sleep_us(10);
+    }
 }
 
 #pragma clang diagnostic pop
