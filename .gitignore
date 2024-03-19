@@ -6,3 +6,5 @@ cmake-build-debug
 build
 Testing
 cpm*/*
+CMakeCache.txt
+CMakeFiles/*
